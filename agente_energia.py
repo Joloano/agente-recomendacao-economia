@@ -18,6 +18,7 @@ DESCRICOES_POR_CATEGORIA = {
 }
 DESCRICAO_PADRAO = "Reduzir o tempo de uso do equipamento."
 
+
 # converter os registros certos
 
 def converter_registro(registro):
@@ -229,9 +230,11 @@ def chave_ordenacao(recomendacao):
 def ordenar_recomendacoes(recomendacoes):
     return sorted(recomendacoes, key=chave_ordenacao, reverse=True)
 
+
 def gerar_descricao(oportunidade):
     categoria = oportunidade["categoria"]
     return DESCRICOES_POR_CATEGORIA.get(categoria, DESCRICAO_PADRAO)
+
 
 def apresentar_recomendacoes(recomendacoes, tarifa):
     print("RECOMENDAÇÕES PERSONALIZADAS (maior utilidade primeiro)")
@@ -250,11 +253,46 @@ def apresentar_recomendacoes(recomendacoes, tarifa):
               f"flexibilidade {notas['flexibilidade']} | baixo esforço {notas['baixo_esforco']}")
         print(f"   O que fazer: {gerar_descricao(oportunidade)}")
 
+
 def registrar_apresentadas(estado, recomendacoes):
     for recomendacao in recomendacoes:
         equipamento_id = recomendacao["oportunidade"]["equipamento_id"]
         if equipamento_id not in estado["apresentadas"]:
             estado["apresentadas"].append(equipamento_id)
+
+
+def atualizar_consumo(estado, economia):
+    novo_consumo = estado["consumo_estimado_kwh"] - economia
+    estado["consumo_estimado_kwh"] = round(max(0, novo_consumo), 3)
+
+
+def registrar_feedback(estado, oportunidade, resposta):
+    equipamento_id = oportunidade["equipamento_id"]
+    nome = oportunidade["equipamento"]
+
+    if resposta not in ("aceitar", "rejeitar"):
+        print(f"Resposta inválida: '{resposta}'. Use 'aceitar' ou 'rejeitar'.")
+        return False
+    if equipamento_id not in estado["pendentes"]:
+        print(f"{nome} já foi tratada. Nada foi alterado.")
+        return False
+
+    consumo_antes = estado["consumo_estimado_kwh"]
+    if resposta == "aceitar":
+        estado["aceitas"].append(equipamento_id)
+        atualizar_consumo(estado, oportunidade["economia_potencial_reducao_kwh"])
+    else:
+        estado["rejeitadas"].append(equipamento_id)
+    estado["pendentes"].remove(equipamento_id)
+
+    estado["historico"].append({
+        "equipamento_id": equipamento_id,
+        "resposta": resposta,
+        "consumo_antes": consumo_antes,
+        "consumo_depois": estado["consumo_estimado_kwh"],
+    })
+    return True
+
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -282,3 +320,11 @@ if __name__ == "__main__":
         apresentar_recomendacoes(recomendacoes, percepcao["residencia"]["tarifa_base_rs_kwh"])
         registrar_apresentadas(estado, recomendacoes)
         print("Apresentadas:", ", ".join(estado["apresentadas"]))
+        tv = recomendacoes[0]["oportunidade"]
+        computador = recomendacoes[2]["oportunidade"]
+        registrar_feedback(estado, tv, "aceitar")
+        registrar_feedback(estado, computador, "rejeitar")
+        registrar_feedback(estado, tv, "aceitar")  # repetido: não pode descontar de novo
+        registrar_feedback(estado, tv, "talvez")  # inválido: não muda nada
+        mostrar_estado(estado)
+        print(estado["historico"])
