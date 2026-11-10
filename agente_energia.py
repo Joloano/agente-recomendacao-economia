@@ -45,6 +45,75 @@ def selecionar_residencia(registros, residencia_id):
             selecionados.append(registro)
     return selecionados
 
+def perceber(registros_residencia):
+    primeiro = registros_residencia[0]
+    residencia = {
+        "residencia_id": primeiro["residencia_id"],
+        "numero_moradores": primeiro["numero_moradores"],
+        "meta_consumo_diario_kwh": primeiro["meta_consumo_diario_kwh"],
+        "tarifa_base_rs_kwh": primeiro["tarifa_base_rs_kwh"],
+        "perfil_morador": primeiro["perfil_morador"],
+    }
+
+    pesos = {
+        "economia": primeiro["peso_economia"],
+        "conforto": primeiro["peso_conforto"],
+        "flexibilidade": primeiro["peso_flexibilidade"],
+        "baixo_esforco": primeiro["peso_baixo_esforco"],
+    }
+    equipamentos = []
+    consumo_total = 0
+    for registro in registros_residencia:
+        equipamento = {
+            "equipamento_id": registro["equipamento_id"],
+            "equipamento": registro["equipamento"],
+            "categoria": registro["categoria"],
+            "potencia_kw": registro["potencia_kw"],
+            "horas_uso_diario": registro["horas_uso_diario"],
+            "consumo_diario_estimado_kwh": registro["consumo_diario_estimado_kwh"],
+            "reducao_uso": registro["reducao_uso"],
+            "essencialidade": registro["essencialidade"],
+            "impacto_conforto_1a5": registro["impacto_conforto_1a5"],
+            "flexibilidade_reducao_uso_1a5": registro["flexibilidade_reducao_uso_1a5"],
+            "esforco_1a5": registro["esforco_1a5"],
+            "economia_potencial_reducao_kwh": registro["economia_potencial_reducao_kwh"],
+        }
+
+        equipamentos.append(equipamento)
+        consumo_total += registro["consumo_diario_estimado_kwh"]
+    percepcao ={
+        "residencia": residencia,
+        "pesos": pesos,
+        "equipamentos": equipamentos,
+        "consumo_total_kwh": round(consumo_total, 3),
+    }
+    return percepcao
+
+def validar_pesos(pesos):
+    soma = 0
+    for valor in pesos.values():
+        soma+=valor
+    if abs(soma-1)<0.001:
+        return True
+    print(f"Aviso: a soma dos pesos é {soma:.3f}, deveria ser 1.")
+    return False
+
+
+def exibir_percepcao(percepcao):
+    residencia = percepcao["residencia"]
+    pesos  = percepcao["pesos"]
+    print(f"PERCEPÇÃO DA RESIDÊNCIA {residencia['residencia_id']}")
+    print(f"Moradores: {residencia['numero_moradores']}")
+    print(f"Perfil: {residencia['perfil_morador']}")
+    print(f"Tarifa: R$ {residencia['tarifa_base_rs_kwh']:.2f}/kWh")
+    print(f"Consumo atual: {percepcao['consumo_total_kwh']:.3f} kWh/dia")
+    print(f"Meta: {residencia['meta_consumo_diario_kwh']:.2f} kWh/dia")
+    print("Prioridades dos moradores:")
+    for criterio, peso in pesos.items():
+        print(f"  {criterio}: {peso:.0%}")
+
+
+
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
     residencia = selecionar_residencia(registros, RESIDENCIA_SELECIONADA)
@@ -53,3 +122,6 @@ if __name__ == "__main__":
         print(f"Residência {RESIDENCIA_SELECIONADA} não encontrada no dataset.")
     else:
         print(f"Residência {RESIDENCIA_SELECIONADA}: {len(residencia)} equipamentos carregados.")
+        percepcao = perceber(residencia)
+        validar_pesos(percepcao["pesos"])
+        exibir_percepcao(percepcao)
