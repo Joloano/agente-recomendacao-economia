@@ -30,6 +30,7 @@ def converter_registro(registro):
     registro["reducao_uso"] = registro["reducao_uso"] == "True"
     return registro
 
+
 def carregar_dataset(caminho):
     registros = []
     with open(caminho, encoding="utf-8-sig", newline="") as arquivo:
@@ -38,12 +39,14 @@ def carregar_dataset(caminho):
             registros.append(converter_registro(registro))
     return registros
 
+
 def selecionar_residencia(registros, residencia_id):
     selecionados = []
     for registro in registros:
         if registro["residencia_id"] == residencia_id:
             selecionados.append(registro)
     return selecionados
+
 
 def perceber(registros_residencia):
     primeiro = registros_residencia[0]
@@ -81,7 +84,7 @@ def perceber(registros_residencia):
 
         equipamentos.append(equipamento)
         consumo_total += registro["consumo_diario_estimado_kwh"]
-    percepcao ={
+    percepcao = {
         "residencia": residencia,
         "pesos": pesos,
         "equipamentos": equipamentos,
@@ -89,11 +92,12 @@ def perceber(registros_residencia):
     }
     return percepcao
 
+
 def validar_pesos(pesos):
     soma = 0
     for valor in pesos.values():
-        soma+=valor
-    if abs(soma-1)<0.001:
+        soma += valor
+    if abs(soma - 1) < 0.001:
         return True
     print(f"Aviso: a soma dos pesos é {soma:.3f}, deveria ser 1.")
     return False
@@ -101,7 +105,7 @@ def validar_pesos(pesos):
 
 def exibir_percepcao(percepcao):
     residencia = percepcao["residencia"]
-    pesos  = percepcao["pesos"]
+    pesos = percepcao["pesos"]
     print(f"PERCEPÇÃO DA RESIDÊNCIA {residencia['residencia_id']}")
     print(f"Moradores: {residencia['numero_moradores']}")
     print(f"Perfil: {residencia['perfil_morador']}")
@@ -112,6 +116,37 @@ def exibir_percepcao(percepcao):
     for criterio, peso in pesos.items():
         print(f"  {criterio}: {peso:.0%}")
 
+
+def criar_estado(percepcao):
+    consumo = percepcao["consumo_total_kwh"]
+    estado = {
+        "residencia_id": percepcao["residencia"]["residencia_id"],
+        "meta_consumo_diario_kwh": percepcao["residencia"]["meta_consumo_diario_kwh"],
+        "consumo_inicial_kwh": consumo,
+        "consumo_estimado_kwh": consumo,
+        "apresentadas": [],
+        "aceitas": [],
+        "rejeitadas": [],
+        "pendentes": [],
+        "historico": [],
+    }
+    return estado
+
+
+def mostrar_estado(estado):
+    consumo = estado["consumo_estimado_kwh"]
+    meta = estado["meta_consumo_diario_kwh"]
+    falta = consumo - meta
+    print(f"ESTADO DA SIMULAÇÃO - {estado['residencia_id']}")
+    print(f"Consumo inicial:  {estado['consumo_inicial_kwh']:.3f} kWh/dia")
+    print(f"Consumo estimado: {consumo:.3f} kWh/dia")
+    if falta > 0:
+        print(f"Faltam {falta:.3f} kWh/dia para atingir a meta ({meta:.2f}).")
+    else:
+        print(f"Meta de {meta:.2f} kWh/dia atingida!")
+    print(f"Aceitas:    {', '.join(estado['aceitas']) or 'nenhuma'}")
+    print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
+    print(f"Pendentes:  {', '.join(estado['pendentes']) or 'nenhuma'}")
 
 
 if __name__ == "__main__":
@@ -125,3 +160,5 @@ if __name__ == "__main__":
         percepcao = perceber(residencia)
         validar_pesos(percepcao["pesos"])
         exibir_percepcao(percepcao)
+        estado = criar_estado(percepcao)
+        mostrar_estado(estado)
