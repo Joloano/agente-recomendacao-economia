@@ -163,6 +163,32 @@ def identificar_elegiveis(equipamentos):
             elegiveis.append(equipamento)
     return elegiveis
 
+def obter_maior_economia(elegiveis):
+    maior = 0
+    for oportunidade in elegiveis:
+        economia = oportunidade["economia_potencial_reducao_kwh"]
+        if economia > maior:
+            maior = economia
+    return maior
+
+def calcular_notas(oportunidade, maior_economia):
+    if maior_economia > 0:
+        proporcao = oportunidade["economia_potencial_reducao_kwh"]/maior_economia
+    else:
+        proporcao = 0
+    notas = {
+        "economia": 1 + 4 * proporcao,
+        "conforto": 6 - oportunidade["impacto_conforto_1a5"],
+        "flexibilidade": oportunidade["flexibilidade_reducao_uso_1a5"],
+        "baixo_esforco": 6 - oportunidade["esforco_1a5"],
+    }
+    return notas
+
+def calcular_utilidade(notas, pesos):
+    utilidade = 0
+    for criterio, peso in pesos.items():
+        utilidade += peso*notas[criterio]
+    return utilidade
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -176,7 +202,6 @@ if __name__ == "__main__":
         validar_pesos(percepcao["pesos"])
         exibir_percepcao(percepcao)
         estado = criar_estado(percepcao)
-        mostrar_estado(estado)
         elegiveis = identificar_elegiveis(percepcao["equipamentos"])
         for equipamento in elegiveis:
             estado["pendentes"].append(equipamento["equipamento_id"])
@@ -186,4 +211,8 @@ if __name__ == "__main__":
         else:
             print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
         mostrar_estado(estado)
-
+        maior_economia = obter_maior_economia(elegiveis)
+        for oportunidade in elegiveis:
+            notas = calcular_notas(oportunidade, maior_economia)
+            utilidade = calcular_utilidade(notas, percepcao["pesos"])
+            print(f"{oportunidade['equipamento']}: {utilidade:.2f}")
