@@ -222,6 +222,7 @@ def gerar_recomendacoes(estado, percepcao):
 
 
 def chave_ordenacao(recomendacao):
+    # Desempate: maior utilidade, depois maior economia (kWh), depois ordem do dataset
     utilidade = round(recomendacao["utilidade"], 6)
     economia = recomendacao["oportunidade"]["economia_potencial_reducao_kwh"]
     return (utilidade, economia)
