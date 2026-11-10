@@ -148,6 +148,21 @@ def mostrar_estado(estado):
     print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
     print(f"Pendentes:  {', '.join(estado['pendentes']) or 'nenhuma'}")
 
+def eh_elegivel(equipamento):
+    return(
+        equipamento["reducao_uso"]
+        and equipamento["economia_potencial_reducao_kwh"]>0
+        and equipamento["essencialidade"] != "essencial"
+        and equipamento["impacto_conforto_1a5"]<=3
+    )
+
+def identificar_elegiveis(equipamentos):
+    elegiveis = []
+    for equipamento in equipamentos:
+        if eh_elegivel(equipamento):
+            elegiveis.append(equipamento)
+    return elegiveis
+
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -162,3 +177,13 @@ if __name__ == "__main__":
         exibir_percepcao(percepcao)
         estado = criar_estado(percepcao)
         mostrar_estado(estado)
+        elegiveis = identificar_elegiveis(percepcao["equipamentos"])
+        for equipamento in elegiveis:
+            estado["pendentes"].append(equipamento["equipamento_id"])
+
+        if len(elegiveis) == 0:
+            print("Nenhuma oportunidade de economia elegível para esta residência.")
+        else:
+            print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
+        mostrar_estado(estado)
+
