@@ -8,7 +8,15 @@ import csv
 
 CAMINHO_DATASET = "dados/dataset_consumo_energia.csv"
 RESIDENCIA_SELECIONADA = "R02"
-
+DESCRICOES_POR_CATEGORIA = {
+    "lavanderia": "Acumular roupas e fazer lavagens com carga completa.",
+    "entretenimento": "Desligar a TV quando ninguém estiver assistindo, sem deixá-la como som de fundo.",
+    "trabalho_estudo": "Ativar o modo de economia de energia e desligar o computador ao fim do uso.",
+    "iluminacao": "Apagar as luzes de ambientes vazios e aproveitar a luz natural.",
+    "cozinha": "Planejar o uso do forno e assar mais de um alimento por vez.",
+    "climatizacao": "Ligar o ventilador só com pessoas no ambiente e desligá-lo ao sair.",
+}
+DESCRICAO_PADRAO = "Reduzir o tempo de uso do equipamento."
 
 # converter os registros certos
 
@@ -148,13 +156,15 @@ def mostrar_estado(estado):
     print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
     print(f"Pendentes:  {', '.join(estado['pendentes']) or 'nenhuma'}")
 
+
 def eh_elegivel(equipamento):
-    return(
-        equipamento["reducao_uso"]
-        and equipamento["economia_potencial_reducao_kwh"]>0
-        and equipamento["essencialidade"] != "essencial"
-        and equipamento["impacto_conforto_1a5"]<=3
+    return (
+            equipamento["reducao_uso"]
+            and equipamento["economia_potencial_reducao_kwh"] > 0
+            and equipamento["essencialidade"] != "essencial"
+            and equipamento["impacto_conforto_1a5"] <= 3
     )
+
 
 def identificar_elegiveis(equipamentos):
     elegiveis = []
@@ -162,6 +172,7 @@ def identificar_elegiveis(equipamentos):
         if eh_elegivel(equipamento):
             elegiveis.append(equipamento)
     return elegiveis
+
 
 def obter_maior_economia(elegiveis):
     maior = 0
@@ -171,9 +182,10 @@ def obter_maior_economia(elegiveis):
             maior = economia
     return maior
 
+
 def calcular_notas(oportunidade, maior_economia):
     if maior_economia > 0:
-        proporcao = oportunidade["economia_potencial_reducao_kwh"]/maior_economia
+        proporcao = oportunidade["economia_potencial_reducao_kwh"] / maior_economia
     else:
         proporcao = 0
     notas = {
@@ -184,11 +196,65 @@ def calcular_notas(oportunidade, maior_economia):
     }
     return notas
 
+
 def calcular_utilidade(notas, pesos):
     utilidade = 0
     for criterio, peso in pesos.items():
-        utilidade += peso*notas[criterio]
+        utilidade += peso * notas[criterio]
     return utilidade
+
+
+def gerar_recomendacoes(estado, percepcao):
+    elegiveis = identificar_elegiveis(percepcao["equipamentos"])
+    maior_economia = obter_maior_economia(elegiveis)
+    recomendacoes = []
+    for oportunidade in elegiveis:
+        if oportunidade["equipamento_id"] in estado["pendentes"]:
+            notas = calcular_notas(oportunidade, maior_economia)
+            recomendacao = {
+                "oportunidade": oportunidade,
+                "notas": notas,
+                "utilidade": calcular_utilidade(notas, percepcao["pesos"]),
+            }
+            recomendacoes.append(recomendacao)
+    return recomendacoes
+
+
+def chave_ordenacao(recomendacao):
+    utilidade = round(recomendacao["utilidade"], 6)
+    economia = recomendacao["oportunidade"]["economia_potencial_reducao_kwh"]
+    return (utilidade, economia)
+
+
+def ordenar_recomendacoes(recomendacoes):
+    return sorted(recomendacoes, key=chave_ordenacao, reverse=True)
+
+def gerar_descricao(oportunidade):
+    categoria = oportunidade["categoria"]
+    return DESCRICOES_POR_CATEGORIA.get(categoria, DESCRICAO_PADRAO)
+
+def apresentar_recomendacoes(recomendacoes, tarifa):
+    print("RECOMENDAÇÕES PERSONALIZADAS (maior utilidade primeiro)")
+    for posicao, recomendacao in enumerate(recomendacoes, start=1):
+        oportunidade = recomendacao["oportunidade"]
+        notas = recomendacao["notas"]
+        economia = oportunidade["economia_potencial_reducao_kwh"]
+
+        print(f"{posicao}. {oportunidade['equipamento']} ({oportunidade['categoria']}) "
+              f"- utilidade {recomendacao['utilidade']:.2f}")
+        print(f"   Economia: {economia:.3f} kWh/dia (R$ {economia * tarifa:.2f}/dia)")
+        print(f"   Impacto no conforto: {oportunidade['impacto_conforto_1a5']}/5 | "
+              f"Flexibilidade: {oportunidade['flexibilidade_reducao_uso_1a5']}/5 | "
+              f"Esforço: {oportunidade['esforco_1a5']}/5")
+        print(f"   Notas: economia {notas['economia']:.1f} | conforto {notas['conforto']} | "
+              f"flexibilidade {notas['flexibilidade']} | baixo esforço {notas['baixo_esforco']}")
+        print(f"   O que fazer: {gerar_descricao(oportunidade)}")
+
+def registrar_apresentadas(estado, recomendacoes):
+    for recomendacao in recomendacoes:
+        equipamento_id = recomendacao["oportunidade"]["equipamento_id"]
+        if equipamento_id not in estado["apresentadas"]:
+            estado["apresentadas"].append(equipamento_id)
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -211,8 +277,8 @@ if __name__ == "__main__":
         else:
             print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
         mostrar_estado(estado)
-        maior_economia = obter_maior_economia(elegiveis)
-        for oportunidade in elegiveis:
-            notas = calcular_notas(oportunidade, maior_economia)
-            utilidade = calcular_utilidade(notas, percepcao["pesos"])
-            print(f"{oportunidade['equipamento']}: {utilidade:.2f}")
+        recomendacoes = gerar_recomendacoes(estado, percepcao)
+        recomendacoes = ordenar_recomendacoes(recomendacoes)
+        apresentar_recomendacoes(recomendacoes, percepcao["residencia"]["tarifa_base_rs_kwh"])
+        registrar_apresentadas(estado, recomendacoes)
+        print("Apresentadas:", ", ".join(estado["apresentadas"]))
