@@ -313,6 +313,19 @@ def ler_resposta():
             return "rejeitar"
         print(f"Resposta inválida: '{texto}'. Digite 'a' ou 'r'.")
 
+def mostrar_resumo(estado, tarifa):
+    inicial = estado["consumo_inicial_kwh"]
+    final = estado["consumo_estimado_kwh"]
+    economia = round(inicial-final, 3)
+    print("Resumo final")
+    print(f"Consumo inicial: {inicial:.3f} kWh/dia")
+    print(f"Consumo final:   {final:.3f} kWh/dia")
+    print(f"Economia total:  {economia:.3f} kWh/dia "
+          f"(R$ {economia * tarifa:.2f}/dia, cerca de R$ {economia * tarifa * 30:.2f}/mês)")
+    print(f"Aceitas:    {', '.join(estado['aceitas']) or 'nenhuma'}")
+    print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
+
+
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -349,3 +362,4 @@ if __name__ == "__main__":
         mostrar_estado(estado)
         print(estado["historico"])
         print("Resposta:", ler_resposta())
+        mostrar_resumo(estado, percepcao["residencia"]["tarifa_base_rs_kwh"])
