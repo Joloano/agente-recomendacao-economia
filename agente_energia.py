@@ -295,6 +295,16 @@ def registrar_feedback(estado, oportunidade, resposta):
     return True
 
 
+def ler_escolha(quantidade):
+    while True:
+        texto = input(f"Escolha uma recomendação (1 a {quantidade}) ou 0 para sair: ").strip()
+        if texto.isdigit():
+            numero = int(texto)
+            if 0 <= numero <= quantidade:
+                return numero
+        print(f"Entrada inválida: '{texto}'. Digite um número de 0 a {quantidade}.")
+
+
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
     residencia = selecionar_residencia(registros, RESIDENCIA_SELECIONADA)
@@ -329,3 +339,4 @@ if __name__ == "__main__":
         registrar_feedback(estado, tv, "talvez")  # inválido: não muda nada
         mostrar_estado(estado)
         print(estado["historico"])
+        print("Você escolheu:", ler_escolha(3))
