@@ -304,6 +304,15 @@ def ler_escolha(quantidade):
                 return numero
         print(f"Entrada inválida: '{texto}'. Digite um número de 0 a {quantidade}.")
 
+def ler_resposta():
+    while True:
+        texto = input("Aceitar (a) ou rejeitar (r)?  ").strip().lower()
+        if texto =="a":
+            return "aceitar"
+        if texto =="r":
+            return "rejeitar"
+        print(f"Resposta inválida: '{texto}'. Digite 'a' ou 'r'.")
+
 
 if __name__ == "__main__":
     registros = carregar_dataset(CAMINHO_DATASET)
@@ -339,4 +348,4 @@ if __name__ == "__main__":
         registrar_feedback(estado, tv, "talvez")  # inválido: não muda nada
         mostrar_estado(estado)
         print(estado["historico"])
-        print("Você escolheu:", ler_escolha(3))
+        print("Resposta:", ler_resposta())
