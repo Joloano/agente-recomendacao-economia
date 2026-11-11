@@ -85,6 +85,36 @@ def casos_feedback():
     return casos
 
 
+def casos_desempate():
+    percepcao, estado = preparar("R07")
+    recomendacoes = agente.ordenar_recomendacoes(agente.gerar_recomendacoes(estado, percepcao))
+    ordem = []
+    for recomendacao in recomendacoes:
+        ordem.append(recomendacao["oportunidade"]["equipamento_id"])
+    return [
+        {"descricao": "R07: Máquina de lavar tem utilidade 4.10",
+         "obtido": recomendacoes[1]["utilidade"], "esperado": 4.10},
+        {"descricao": "R07: Ventilador também tem 4.10 (empate)",
+         "obtido": recomendacoes[2]["utilidade"], "esperado": 4.10},
+        {"descricao": "R07: desempate pela economia: TV, Máquina, Ventilador",
+         "obtido": ordem, "esperado": ["E05", "E04", "E06"]},
+    ]
+
+
+def executar_testes():
+    casos = casos_decisao() + casos_feedback() + casos_desempate()
+    acertos = 0
+    print("TESTES AUTOMÁTICOS")
+    for numero, caso in enumerate(casos, start=1):
+        if iguais(caso["obtido"], caso["esperado"]):
+            acertos += 1
+            situacao = "OK"
+        else:
+            situacao = f"FALHOU (obtido {caso['obtido']}, esperado {caso['esperado']})"
+        print(f"{numero:2d}. {caso['descricao']}: {situacao}")
+    print(f"RESUMO: {acertos} de {len(casos)} testes OK")
+    return acertos == len(casos)
+
+
 if __name__ == "__main__":
-    for caso in casos_decisao() + casos_feedback():
-        print(caso["descricao"], iguais(caso["obtido"], caso["esperado"]))
+    executar_testes()
