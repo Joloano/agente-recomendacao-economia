@@ -51,6 +51,40 @@ def casos_decisao():
     return casos
 
 
+def casos_feedback():
+    casos = []
+    percepcao, estado = preparar("R02")
+    oportunidades = {}
+    for oportunidade in agente.identificar_elegiveis(percepcao["equipamentos"]):
+        oportunidades[oportunidade["equipamento_id"]] = oportunidade
+    tv = oportunidades["E05"]
+    computador = oportunidades["E06"]
+
+    agente.registrar_feedback(estado, tv, "aceitar")
+    casos.append({"descricao": "Aceitar a TV reduz o consumo para 16.743",
+                  "obtido": estado["consumo_estimado_kwh"], "esperado": 16.743})
+    casos.append({"descricao": "A TV sai das pendentes",
+                  "obtido": "E05" in estado["pendentes"], "esperado": False})
+
+    agente.registrar_feedback(estado, computador, "rejeitar")
+    casos.append({"descricao": "Rejeitar o Computador mantém 16.743",
+                  "obtido": estado["consumo_estimado_kwh"], "esperado": 16.743})
+    casos.append({"descricao": "Pendentes ficam só com E04",
+                  "obtido": estado["pendentes"], "esperado": ["E04"]})
+
+    repetido = agente.registrar_feedback(estado, tv, "aceitar")
+    casos.append({"descricao": "Aceitar a TV de novo é recusado",
+                  "obtido": repetido, "esperado": False})
+    casos.append({"descricao": "Sem desconto duplicado",
+                  "obtido": estado["consumo_estimado_kwh"], "esperado": 16.743})
+
+    estado["consumo_estimado_kwh"] = 0.05
+    agente.atualizar_consumo(estado, 0.12)
+    casos.append({"descricao": "Consumo nunca fica negativo",
+                  "obtido": estado["consumo_estimado_kwh"], "esperado": 0.0})
+    return casos
+
+
 if __name__ == "__main__":
-    for caso in casos_decisao():
+    for caso in casos_decisao() + casos_feedback():
         print(caso["descricao"], iguais(caso["obtido"], caso["esperado"]))
