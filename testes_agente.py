@@ -1,3 +1,6 @@
+#testes automaticos para o agente
+
+
 import agente_energia as agente
 
 TOLERANCIA = 0.001
@@ -145,4 +148,5 @@ def demonstrar_cenarios():
 
 if __name__ == "__main__":
     demonstrar_cenarios()
+    print("=" * 223)
     executar_testes()
