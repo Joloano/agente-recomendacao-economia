@@ -304,19 +304,21 @@ def ler_escolha(quantidade):
                 return numero
         print(f"Entrada inválida: '{texto}'. Digite um número de 0 a {quantidade}.")
 
+
 def ler_resposta():
     while True:
         texto = input("Aceitar (a) ou rejeitar (r)?  ").strip().lower()
-        if texto =="a":
+        if texto == "a":
             return "aceitar"
-        if texto =="r":
+        if texto == "r":
             return "rejeitar"
         print(f"Resposta inválida: '{texto}'. Digite 'a' ou 'r'.")
+
 
 def mostrar_resumo(estado, tarifa):
     inicial = estado["consumo_inicial_kwh"]
     final = estado["consumo_estimado_kwh"]
-    economia = round(inicial-final, 3)
+    economia = round(inicial - final, 3)
     print("Resumo final")
     print(f"Consumo inicial: {inicial:.3f} kWh/dia")
     print(f"Consumo final:   {final:.3f} kWh/dia")
@@ -326,40 +328,47 @@ def mostrar_resumo(estado, tarifa):
     print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
 
 
-
-if __name__ == "__main__":
+def executar_agente():
     registros = carregar_dataset(CAMINHO_DATASET)
     residencia = selecionar_residencia(registros, RESIDENCIA_SELECIONADA)
-
     if len(residencia) == 0:
         print(f"Residência {RESIDENCIA_SELECIONADA} não encontrada no dataset.")
-    else:
-        print(f"Residência {RESIDENCIA_SELECIONADA}: {len(residencia)} equipamentos carregados.")
-        percepcao = perceber(residencia)
-        validar_pesos(percepcao["pesos"])
-        exibir_percepcao(percepcao)
-        estado = criar_estado(percepcao)
-        elegiveis = identificar_elegiveis(percepcao["equipamentos"])
-        for equipamento in elegiveis:
-            estado["pendentes"].append(equipamento["equipamento_id"])
+        return
 
-        if len(elegiveis) == 0:
-            print("Nenhuma oportunidade de economia elegível para esta residência.")
-        else:
-            print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
-        mostrar_estado(estado)
-        recomendacoes = gerar_recomendacoes(estado, percepcao)
-        recomendacoes = ordenar_recomendacoes(recomendacoes)
-        apresentar_recomendacoes(recomendacoes, percepcao["residencia"]["tarifa_base_rs_kwh"])
+    print(f"Residência {RESIDENCIA_SELECIONADA}: {len(residencia)} equipamentos carregados.")
+    percepcao = perceber(residencia)
+    validar_pesos(percepcao["pesos"])
+    exibir_percepcao(percepcao)
+    tarifa = percepcao["residencia"]["tarifa_base_rs_kwh"]
+
+    estado = criar_estado(percepcao)
+    elegiveis = identificar_elegiveis(percepcao["equipamentos"])
+    for equipamento in elegiveis:
+        estado["pendentes"].append(equipamento["equipamento_id"])
+    print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
+    mostrar_estado(estado)
+
+    while len(estado["pendentes"]) > 0:
+        print()
+        recomendacoes = ordenar_recomendacoes(gerar_recomendacoes(estado, percepcao))
+        apresentar_recomendacoes(recomendacoes, tarifa)
         registrar_apresentadas(estado, recomendacoes)
-        print("Apresentadas:", ", ".join(estado["apresentadas"]))
-        tv = recomendacoes[0]["oportunidade"]
-        computador = recomendacoes[2]["oportunidade"]
-        registrar_feedback(estado, tv, "aceitar")
-        registrar_feedback(estado, computador, "rejeitar")
-        registrar_feedback(estado, tv, "aceitar")  # repetido: não pode descontar de novo
-        registrar_feedback(estado, tv, "talvez")  # inválido: não muda nada
+
+        escolha = ler_escolha(len(recomendacoes))
+        if escolha == 0:
+            print("Encerrando a simulação a pedido do usuário.")
+            break
+
+        oportunidade = recomendacoes[escolha - 1]["oportunidade"]
+        resposta = ler_resposta()
+        registrar_feedback(estado, oportunidade, resposta)
         mostrar_estado(estado)
-        print(estado["historico"])
-        print("Resposta:", ler_resposta())
-        mostrar_resumo(estado, percepcao["residencia"]["tarifa_base_rs_kwh"])
+
+    if len(estado["pendentes"]) == 0:
+        print("Não há mais recomendações pendentes.")
+    print()
+    mostrar_resumo(estado, tarifa)
+
+
+if __name__ == "__main__":
+    executar_agente()
