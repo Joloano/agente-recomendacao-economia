@@ -19,16 +19,16 @@ DESCRICOES_POR_CATEGORIA = {
 DESCRICAO_PADRAO = "Reduzir o tempo de uso do equipamento."
 
 
-# converter os registros certos
+# converter os registros certos pq o csv entrega tudo como texto
 
 def converter_registro(registro):
-    campos_float = [
+    campos_float = [ #essas colunas viram decimais ou float
         "meta_consumo_diario_kwh", "tarifa_base_rs_kwh",
         "peso_economia", "peso_conforto", "peso_flexibilidade", "peso_baixo_esforco",
         "potencia_kw", "horas_uso_diario", "consumo_diario_estimado_kwh",
         "economia_potencial_reducao_kwh",
     ]
-    campos_int = [
+    campos_int = [ #essas int
         "numero_moradores", "impacto_conforto_1a5",
         "flexibilidade_reducao_uso_1a5", "esforco_1a5",
     ]
@@ -39,16 +39,16 @@ def converter_registro(registro):
     registro["reducao_uso"] = registro["reducao_uso"] == "True"
     return registro
 
-
+#essa função carrega o dataset
 def carregar_dataset(caminho):
     registros = []
     with open(caminho, encoding="utf-8-sig", newline="") as arquivo:
-        leitor = csv.DictReader(arquivo)
+        leitor = csv.DictReader(arquivo) #dictreader transforma cada linha em um dicionarios e o nome da coluna como chave
         for registro in leitor:
             registros.append(converter_registro(registro))
     return registros
 
-
+#aqui dos 60 registros ficam apenas aqueles da casa selecionada
 def selecionar_residencia(registros, residencia_id):
     selecionados = []
     for registro in registros:
@@ -56,9 +56,11 @@ def selecionar_residencia(registros, residencia_id):
             selecionados.append(registro)
     return selecionados
 
-
+#essa função vai organizar os registros da casa selecionada
 def perceber(registros_residencia):
+    #como os dados do registro se repetem em toda linha basta pegarmos a posição 0
     primeiro = registros_residencia[0]
+    # aqui são montados as residencias e os pesos com nomes mais curtos
     residencia = {
         "residencia_id": primeiro["residencia_id"],
         "numero_moradores": primeiro["numero_moradores"],
@@ -75,6 +77,7 @@ def perceber(registros_residencia):
     }
     equipamentos = []
     consumo_total = 0
+    #percorre os equipamentos e copia os dados e soma o consumo em um acumulador
     for registro in registros_residencia:
         equipamento = {
             "equipamento_id": registro["equipamento_id"],
@@ -101,7 +104,7 @@ def perceber(registros_residencia):
     }
     return percepcao
 
-
+#aqui são conferidos se os pesos somam 1
 def validar_pesos(pesos):
     soma = 0
     for valor in pesos.values():
@@ -111,7 +114,7 @@ def validar_pesos(pesos):
     print(f"Aviso: a soma dos pesos é {soma:.3f}, deveria ser 1.")
     return False
 
-
+#mostra oq o agente entendeu da casa selecionada
 def exibir_percepcao(percepcao):
     residencia = percepcao["residencia"]
     pesos = percepcao["pesos"]
@@ -125,7 +128,7 @@ def exibir_percepcao(percepcao):
     for criterio, peso in pesos.items():
         print(f"  {criterio}: {peso:.0%}")
 
-
+#aqui é a memória do agente, guarda o consumo inicial que nunca vai mudar
 def criar_estado(percepcao):
     consumo = percepcao["consumo_total_kwh"]
     estado = {
@@ -141,7 +144,7 @@ def criar_estado(percepcao):
     }
     return estado
 
-
+#aqui vai imprimir o placar
 def mostrar_estado(estado):
     consumo = estado["consumo_estimado_kwh"]
     meta = estado["meta_consumo_diario_kwh"]
@@ -153,20 +156,19 @@ def mostrar_estado(estado):
         print(f"Faltam {falta:.3f} kWh/dia para atingir a meta ({meta:.2f}).")
     else:
         print(f"Meta de {meta:.2f} kWh/dia atingida!")
-    print(f"Aceitas:    {', '.join(estado['aceitas']) or 'nenhuma'}")
+    print(f"Aceitas:    {', '.join(estado['aceitas']) or 'nenhuma'}") #junta os itens com virgula e o or quando a lista está fazia
     print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
     print(f"Pendentes:  {', '.join(estado['pendentes']) or 'nenhuma'}")
 
-
+#aqui é a peneira
 def eh_elegivel(equipamento):
-    return (
+    return (#condições que devem ser verdadeiras
             equipamento["reducao_uso"]
             and equipamento["economia_potencial_reducao_kwh"] > 0
             and equipamento["essencialidade"] != "essencial"
             and equipamento["impacto_conforto_1a5"] <= 3
     )
-
-
+#aplica a pergunta a cada equipamento chamando eh_elegivel
 def identificar_elegiveis(equipamentos):
     elegiveis = []
     for equipamento in equipamentos:
@@ -174,7 +176,7 @@ def identificar_elegiveis(equipamentos):
             elegiveis.append(equipamento)
     return elegiveis
 
-
+#encontra a campeã guardando um recorde e atualiza quando aparece alguem melhor
 def obter_maior_economia(elegiveis):
     maior = 0
     for oportunidade in elegiveis:
@@ -183,30 +185,30 @@ def obter_maior_economia(elegiveis):
             maior = economia
     return maior
 
-
+#aqui coloca tudo em escala de 1 a 5
 def calcular_notas(oportunidade, maior_economia):
     if maior_economia > 0:
-        proporcao = oportunidade["economia_potencial_reducao_kwh"] / maior_economia
+        proporcao = oportunidade["economia_potencial_reducao_kwh"] / maior_economia # maior economia vira proporção da campea
     else:
         proporcao = 0
     notas = {
         "economia": 1 + 4 * proporcao,
-        "conforto": 6 - oportunidade["impacto_conforto_1a5"],
+        "conforto": 6 - oportunidade["impacto_conforto_1a5"], #conforto - oportunidade para inverter a escala
         "flexibilidade": oportunidade["flexibilidade_reducao_uso_1a5"],
-        "baixo_esforco": 6 - oportunidade["esforco_1a5"],
+        "baixo_esforco": 6 - oportunidade["esforco_1a5"],# aqui também
     }
     return notas
 
-
+#multiplica cada nota pelo peso que a familia da e soma tudo, funciona pq usam as mesmas chaves
 def calcular_utilidade(notas, pesos):
     utilidade = 0
     for criterio, peso in pesos.items():
         utilidade += peso * notas[criterio]
     return utilidade
 
-
+#cria uma ficha para cada oportunidade ainda pendente com notas e utilidade
 def gerar_recomendacoes(estado, percepcao):
-    elegiveis = identificar_elegiveis(percepcao["equipamentos"])
+    elegiveis = identificar_elegiveis(percepcao["equipamentos"]) # a regua da economia usa todos os elegíveis para a nota não mudar só porque alguem disse não
     maior_economia = obter_maior_economia(elegiveis)
     recomendacoes = []
     for oportunidade in elegiveis:
@@ -220,7 +222,7 @@ def gerar_recomendacoes(estado, percepcao):
             recomendacoes.append(recomendacao)
     return recomendacoes
 
-
+#para ordenar a chave devolve uma tupla utilidade e economia
 def chave_ordenacao(recomendacao):
     # Desempate: maior utilidade, depois maior economia (kWh), depois ordem do dataset
     utilidade = round(recomendacao["utilidade"], 6)
@@ -236,7 +238,9 @@ def gerar_descricao(oportunidade):
     categoria = oportunidade["categoria"]
     return DESCRICOES_POR_CATEGORIA.get(categoria, DESCRICAO_PADRAO)
 
-
+#acontece a enumeração de cada item com enumerate começando em 1
+#mostra a economia em kw e reais
+#notas
 def apresentar_recomendacoes(recomendacoes, tarifa):
     print("RECOMENDAÇÕES PERSONALIZADAS (maior utilidade primeiro)")
     for posicao, recomendacao in enumerate(recomendacoes, start=1):
@@ -254,19 +258,19 @@ def apresentar_recomendacoes(recomendacoes, tarifa):
               f"flexibilidade {notas['flexibilidade']} | baixo esforço {notas['baixo_esforco']}")
         print(f"   O que fazer: {gerar_descricao(oportunidade)}")
 
-
+#registra no estado que ja foi mostrado sem repetir ninguém
 def registrar_apresentadas(estado, recomendacoes):
     for recomendacao in recomendacoes:
         equipamento_id = recomendacao["oportunidade"]["equipamento_id"]
         if equipamento_id not in estado["apresentadas"]:
             estado["apresentadas"].append(equipamento_id)
 
-
+#atualiza a economia aqui consumo nunca será negativo
 def atualizar_consumo(estado, economia):
     novo_consumo = estado["consumo_estimado_kwh"] - economia
     estado["consumo_estimado_kwh"] = round(max(0, novo_consumo), 3)
 
-
+#dois guardas resposta invalida ou recomendação ja tratada, passando
 def registrar_feedback(estado, oportunidade, resposta):
     equipamento_id = oportunidade["equipamento_id"]
     nome = oportunidade["equipamento"]
@@ -277,15 +281,15 @@ def registrar_feedback(estado, oportunidade, resposta):
     if equipamento_id not in estado["pendentes"]:
         print(f"{nome} já foi tratada. Nada foi alterado.")
         return False
-
+#coloca em aceitas e desconta o consumo
     consumo_antes = estado["consumo_estimado_kwh"]
     if resposta == "aceitar":
         estado["aceitas"].append(equipamento_id)
         atualizar_consumo(estado, oportunidade["economia_potencial_reducao_kwh"])
-    else:
+    else:# rejeitar coloca em rejeitadas
         estado["rejeitadas"].append(equipamento_id)
     estado["pendentes"].remove(equipamento_id)
-
+#nos dois casos fica anorado no histórico
     estado["historico"].append({
         "equipamento_id": equipamento_id,
         "resposta": resposta,
@@ -294,10 +298,10 @@ def registrar_feedback(estado, oportunidade, resposta):
     })
     return True
 
-
+#conversa com o humano repetindo a pergunta até receber algo valido
 def ler_escolha(quantidade):
     while True:
-        texto = input(f"Escolha uma recomendação (1 a {quantidade}) ou 0 para sair: ").strip()
+        texto = input(f"Escolha uma recomendação (1 a {quantidade}) ou 0 para sair: ").strip()# aceita espaço e letra maiúscula
         if texto.isdigit():
             numero = int(texto)
             if 0 <= numero <= quantidade:
@@ -314,7 +318,7 @@ def ler_resposta():
             return "rejeitar"
         print(f"Resposta inválida: '{texto}'. Digite 'a' ou 'r'.")
 
-
+#fecha a simulação com o consumo inicial e final e a economia em reais por dia e por mes
 def mostrar_resumo(estado, tarifa):
     inicial = estado["consumo_inicial_kwh"]
     final = estado["consumo_estimado_kwh"]
@@ -327,7 +331,7 @@ def mostrar_resumo(estado, tarifa):
     print(f"Aceitas:    {', '.join(estado['aceitas']) or 'nenhuma'}")
     print(f"Rejeitadas: {', '.join(estado['rejeitadas']) or 'nenhuma'}")
 
-
+#aqui gerencia carregando e selecionando, percebendo cria o estado e enche as pendentes, se a casa não existir ja para logo no incio
 def executar_agente():
     registros = carregar_dataset(CAMINHO_DATASET)
     residencia = selecionar_residencia(registros, RESIDENCIA_SELECIONADA)
@@ -347,7 +351,7 @@ def executar_agente():
         estado["pendentes"].append(equipamento["equipamento_id"])
     print(f"{len(elegiveis)} oportunidades elegíveis encontradas.")
     mostrar_estado(estado)
-
+#laço da conversa enquanto houver pendentes gera ordena, apresenta , pergunta e registra
     while len(estado["pendentes"]) > 0:
         print()
         recomendacoes = ordenar_recomendacoes(gerar_recomendacoes(estado, percepcao))
