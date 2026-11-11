@@ -116,5 +116,33 @@ def executar_testes():
     return acertos == len(casos)
 
 
+def demonstrar_cenarios():
+    percepcao, estado = preparar("R02")
+    tarifa = percepcao["residencia"]["tarifa_base_rs_kwh"]
+
+    print("=" * 60)
+    print("CENÁRIO 1 - SITUAÇÃO INICIAL")
+    agente.exibir_percepcao(percepcao)
+    agente.mostrar_estado(estado)
+    recomendacoes = agente.ordenar_recomendacoes(agente.gerar_recomendacoes(estado, percepcao))
+    agente.apresentar_recomendacoes(recomendacoes, tarifa)
+    agente.registrar_apresentadas(estado, recomendacoes)
+
+    escolhida = recomendacoes[0]["oportunidade"]
+    print("=" * 60)
+    print(f"CENÁRIO 2 - ACEITAÇÃO: o usuário aceita a 1ª ({escolhida['equipamento']})")
+    agente.registrar_feedback(estado, escolhida, "aceitar")
+    agente.mostrar_estado(estado)
+
+    recomendacoes = agente.ordenar_recomendacoes(agente.gerar_recomendacoes(estado, percepcao))
+    escolhida = recomendacoes[0]["oportunidade"]
+    print("=" * 60)
+    print(f"CENÁRIO 3 - REJEIÇÃO: o usuário rejeita a nova 1ª ({escolhida['equipamento']})")
+    agente.apresentar_recomendacoes(recomendacoes, tarifa)
+    agente.registrar_feedback(estado, escolhida, "rejeitar")
+    agente.mostrar_estado(estado)
+
+
 if __name__ == "__main__":
+    demonstrar_cenarios()
     executar_testes()
