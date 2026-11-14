@@ -80,13 +80,3 @@ Interação
 - Recomendação já aceita ou rejeitada: não é processada novamente, evitando desconto duplicado.
 - A maior economia usada no cálculo da nota considera todas as oportunidades elegíveis da residência,
   para que as notas não mudem ao longo da simulação.
-
-
-5. TESTES (OPCIONAL)
-
-O arquivo testes_agente.py demonstra os três cenários (situação inicial, aceitação e rejeição)
-e executa verificações automáticas das regras principais. Para executar:
-
-    python testes_agente.py
-
-Resultado esperado ao final: RESUMO: 26 de 26 testes OK
