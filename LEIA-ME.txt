@@ -1,0 +1,82 @@
+TRABALHO 2 - AGENTE INTELIGENTE PARA RECOMENDAÇÃO DE ECONOMIA DE ENERGIA
+
+Aluno: Joloano Korzekwa Pereira
+Vídeo de apresentação: [colocar o link aqui]
+
+
+1. COMO EXECUTAR
+
+Requisito: Python 3.10 ou superior. Não é necessário instalar nenhuma biblioteca.
+
+Abra o terminal na pasta do projeto (a mesma do arquivo agente_energia.py) e execute:
+
+    python agente_energia.py
+
+A pasta "dados" com o arquivo dataset_consumo_energia.csv deve estar junto do código.
+
+Durante a execução:
+- digite o número da recomendação desejada (ou 0 para sair);
+- depois digite "a" para aceitar ou "r" para rejeitar.
+O programa repete esse ciclo até não haver mais recomendações pendentes ou até o usuário digitar 0.
+Ao final, é exibido um resumo com o consumo inicial, o consumo final e a economia obtida.
+
+
+2. RESIDÊNCIA UTILIZADA NA DEMONSTRAÇÃO
+
+A residência utilizada é a R02.
+Para executar com outra residência, basta alterar a constante RESIDENCIA_SELECIONADA,
+no início do arquivo agente_energia.py, para qualquer valor de R01 a R10.
+Nenhuma outra alteração é necessária.
+
+
+3. ORGANIZAÇÃO DO CÓDIGO
+
+O código está em um único arquivo (agente_energia.py), dividido em funções com responsabilidades separadas:
+
+Carregamento dos dados
+- converter_registro: converte os campos do CSV (texto) para número e booleano.
+- carregar_dataset: lê o arquivo CSV e devolve a lista de registros.
+- selecionar_residencia: filtra os registros da residência escolhida.
+
+Percepção
+- perceber: organiza os dados da residência, os pesos, os equipamentos e o consumo total.
+- validar_pesos: confere se os pesos somam 1.
+- exibir_percepcao: mostra na tela os dados percebidos.
+
+Estado
+- criar_estado: cria a memória do agente (consumo, aceitas, rejeitadas, pendentes e histórico).
+- mostrar_estado: mostra a situação atual da simulação.
+
+Decisão
+- eh_elegivel e identificar_elegiveis: aplicam os critérios de elegibilidade.
+- obter_maior_economia: encontra a maior economia entre as oportunidades elegíveis.
+- calcular_notas: calcula as notas de 1 a 5 de cada critério.
+- calcular_utilidade: calcula a utilidade com os pesos da residência.
+- gerar_recomendacoes: monta as recomendações das oportunidades pendentes.
+
+Apresentação
+- chave_ordenacao e ordenar_recomendacoes: ordenam da maior para a menor utilidade.
+- gerar_descricao: define a ação recomendada de acordo com a categoria.
+- apresentar_recomendacoes: exibe as recomendações ordenadas.
+- registrar_apresentadas: registra no estado as recomendações já exibidas.
+
+Feedback
+- atualizar_consumo: desconta a economia do consumo estimado.
+- registrar_feedback: registra a aceitação ou a rejeição e atualiza o estado.
+
+Interação
+- ler_escolha e ler_resposta: leem e validam o que o usuário digita.
+- mostrar_resumo: exibe o resultado final da simulação.
+- executar_agente: função principal, que coordena todo o ciclo do agente.
+
+
+4. DECISÕES PARA CASOS OMISSOS
+
+- Empate de utilidade: vence a oportunidade com maior economia em kWh;
+  persistindo o empate, mantém-se a ordem do dataset.
+- Entradas inválidas (texto, número fora da lista ou resposta diferente de a/r):
+  o programa exibe um aviso e pergunta novamente, sem encerrar.
+- Consumo estimado: nunca fica negativo.
+- Recomendação já aceita ou rejeitada: não é processada novamente, evitando desconto duplicado.
+- A maior economia usada no cálculo da nota considera todas as oportunidades elegíveis da residência,
+  para que as notas não mudem ao longo da simulação.
