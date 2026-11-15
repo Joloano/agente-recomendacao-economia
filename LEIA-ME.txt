@@ -1,7 +1,7 @@
 TRABALHO 2 - AGENTE INTELIGENTE PARA RECOMENDAÇÃO DE ECONOMIA DE ENERGIA
 
 Aluno: Joloano Korzekwa Pereira
-Vídeo de apresentação: [colocar o link aqui]
+Vídeo de apresentação: https://youtu.be/SR8bxY2YyFs
 
 
 1. COMO EXECUTAR
