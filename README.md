@@ -1,81 +1,88 @@
-# Agente Inteligente para Recomendação de Economia de Energia
+# Agente Recomendador de Energia e Água
 
-Trabalho 2 da disciplina **UFSM01280 – Agentes Inteligentes para Sistemas Web** (UFSM, 2026/2).
+Plataforma web com um **agente inteligente** que recomenda ações personalizadas para reduzir o
+consumo de **energia elétrica** e de **água** em residências. Nasceu como o Trabalho 2 da disciplina
+UFSM01280 – Agentes Inteligentes para Sistemas Web (UFSM, 2026/2) e está evoluindo para um produto completo.
 
-Agente em Python que analisa os equipamentos de uma residência, identifica oportunidades de economia de energia, calcula a **utilidade** de cada alternativa segundo as prioridades dos moradores e recomenda ações em ordem personalizada. O usuário aceita ou rejeita cada recomendação, e o agente atualiza seu **estado** e o **consumo estimado** da residência.
+> 🚧 Em desenvolvimento. O planejamento está nas [issues](../../issues) e no [AGENTS.md](AGENTS.md).
+> A versão original de terminal continua disponível em `agente_energia.py`.
 
-> Entrega: **15/11/2026** · Valor: **4,0 pontos**
+## Funcionalidades
 
----
+- Cadastro e login de usuários (JWT), com papéis **admin** e **cliente**
+- Cadastro de residências, preferências (pesos) e equipamentos de energia e de água
+- Recomendações ordenadas por **utilidade ponderada** às prioridades dos moradores
+- Feedback (aceitar/rejeitar) que atualiza o consumo estimado e o histórico
+- Painel de administração para gerenciar usuários, equipamentos, categorias e simulações
+- API REST documentada (OpenAPI/Swagger)
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    U[Navegador] --> W[Angular<br/>nginx :4200]
+    W -->|REST /api/v1| A[FastAPI<br/>:8000]
+    A --> G[Agente recomendador<br/>energia + água]
+    A --> D[(PostgreSQL<br/>:5432)]
+```
+
+| Camada | Tecnologia |
+|---|---|
+| Backend | Python 3.12, FastAPI, SQLAlchemy, Alembic |
+| Banco | PostgreSQL 16 |
+| Frontend | Angular + Angular Material |
+| Infra | Docker e docker compose |
+
+Diagramas ER e de classes: [docs/diagramas.md](docs/diagramas.md).
 
 ## Ciclo do agente
 
 ```mermaid
 flowchart LR
-    A[Carregar dataset] --> B[Selecionar residência]
-    B --> C[Perceber<br/>dados, pesos, equipamentos]
-    C --> D[Estado inicial]
-    D --> E[Identificar elegíveis]
-    E --> F[Calcular utilidade]
-    F --> G[Ordenar e apresentar]
-    G --> H{Usuário}
-    H -- aceita --> I[Registrar + reduzir consumo]
-    H -- rejeita --> J[Registrar + manter consumo]
-    I --> K[Atualizar estado]
-    J --> K
-    K --> G
+    A[Perceber residência] --> B[Filtrar elegíveis<br/>energia e água]
+    B --> C[Calcular notas e utilidade]
+    C --> D[Ordenar e apresentar]
+    D --> E{Usuário}
+    E -- aceita --> F[Reduz consumo estimado]
+    E -- rejeita --> G[Mantém consumo]
+    F --> H[Atualiza estado]
+    G --> H
+    H --> D
 ```
 
-## Regras de negócio (resumo do enunciado)
+### Regras
 
-**Elegibilidade** – a oportunidade só pode ser recomendada se, ao mesmo tempo:
+**Elegibilidade**: `reducao_uso = True`, `economia_potencial > 0`, `essencialidade ≠ essencial`, `impacto_conforto ≤ 3`.
 
-| Campo | Condição |
+| Critério | Nota (1 a 5) |
 |---|---|
-| `reducao_uso` | `True` |
-| `economia_potencial_reducao_kwh` | `> 0` |
-| `essencialidade` | `!= "essencial"` |
-| `impacto_conforto_1a5` | `<= 3` |
+| Economia | `1 + 4 × (economia / maior economia elegível)` |
+| Conforto | `6 − impacto_conforto` |
+| Flexibilidade | `flexibilidade_reducao_uso` |
+| Baixo esforço | `6 − esforço` |
 
-**Notas (escala 1 a 5)**
+`utilidade = Σ peso × nota` — energia em kWh/dia, água em litros/dia.
 
-| Critério | Fórmula |
-|---|---|
-| Economia | `1 + 4 * (economia_potencial / maior_economia_elegivel)` |
-| Conforto | `6 - impacto_conforto_1a5` |
-| Flexibilidade | `flexibilidade_reducao_uso_1a5` |
-| Baixo esforço | `6 - esforco_1a5` |
+## Como executar (Docker)
 
-**Utilidade**
-
-```
-utilidade = peso_economia * nota_economia
-          + peso_conforto * nota_conforto
-          + peso_flexibilidade * nota_flexibilidade
-          + peso_baixo_esforco * nota_baixo_esforco
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 
-## Estrutura do repositório
+- Frontend: http://localhost:4200
+- API / Swagger: http://localhost:8000/docs
 
-```
-.
-├── dados/
-│   └── dataset_consumo_energia.csv   # dataset fornecido pelo professor (não alterar)
-├── agente_energia.py                 # código-fonte do agente
-├── LEIA-ME.txt                       # instruções de execução (entregável)
-└── README.md
-```
+O admin inicial é criado a partir das variáveis `ADMIN_EMAIL` e `ADMIN_SENHA` do `.env`.
 
-## Como executar
-
-Requisitos: Python 3.10+ (sem bibliotecas externas).
+## Versão original (terminal)
 
 ```bash
 python agente_energia.py
 ```
 
-A residência simulada é definida pela constante `RESIDENCIA_SELECIONADA` no início do arquivo. Basta trocar o identificador (`R01` a `R10`) para executar a mesma lógica em outra residência.
+Requer Python 3.10+, sem dependências. A residência é escolhida pela constante `RESIDENCIA_SELECIONADA` (R01 a R10).
 
-## Planejamento
+## Contribuindo
 
-O desenvolvimento está dividido em issues, uma por responsabilidade do agente, agrupadas no milestone **Trabalho 2 – Entrega**. Cada issue contém contexto, tarefas, critérios de aceite e a seção correspondente do enunciado.
+Leia o [AGENTS.md](AGENTS.md): stack, estrutura, regras do agente e convenções de branch, commit e PR.
