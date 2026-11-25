@@ -1,0 +1,53 @@
+LICENÇA DE SOFTWARE PROPRIETÁRIO
+
+Copyright (c) 2026 Joloano Korzekwa Pereira. Todos os direitos reservados.
+
+Este software, incluindo código-fonte, código compilado, documentação, diagramas,
+interfaces, marcas, nomes e demais materiais deste repositório (o "Software"), é
+de propriedade exclusiva do titular acima, protegido pela Lei nº 9.609/1998
+(Lei do Software), pela Lei nº 9.610/1998 (Lei de Direitos Autorais) e pelos
+tratados internacionais aplicáveis.
+
+1. NENHUMA LICENÇA É CONCEDIDA
+   O acesso a este repositório não concede nenhum direito de uso, cópia,
+   modificação, fusão, publicação, distribuição, sublicenciamento, venda,
+   hospedagem ou oferta como serviço (SaaS) do Software, no todo ou em parte,
+   sem autorização prévia, expressa e por escrito do titular.
+
+2. USO AUTORIZADO
+   Pessoas expressamente autorizadas pelo titular (por exemplo, colaboradores
+   ou avaliadores acadêmicos) podem acessar e executar o Software somente para
+   a finalidade autorizada e enquanto durar a autorização.
+
+3. RESTRIÇÕES
+   É proibido, sem autorização por escrito:
+   a) copiar ou redistribuir o Software ou qualquer parte dele;
+   b) criar obras derivadas ou integrá-lo a outros produtos;
+   c) fazer engenharia reversa, descompilar ou desmontar o Software;
+   d) remover ou alterar avisos de direitos autorais ou desta licença;
+   e) usar o Software para fins comerciais.
+
+4. CONTRIBUIÇÕES
+   Qualquer contribuição enviada ao repositório (código, documentação, issues ou
+   sugestões) poderá ser usada, modificada e incorporada ao Software pelo
+   titular, sem que isso gere ao contribuidor direito de propriedade sobre o
+   Software.
+
+5. MATERIAIS DE TERCEIROS
+   Bibliotecas e dependências de código aberto usadas pelo Software continuam
+   regidas por suas próprias licenças. O dataset em `dados/dataset_consumo_energia.csv`
+   foi fornecido pela disciplina UFSM01280 (UFSM) e pertence a seus autores.
+
+6. AUSÊNCIA DE GARANTIA
+   O Software é fornecido "no estado em que se encontra", sem garantias de
+   qualquer tipo. As recomendações de economia são estimativas e não
+   substituem a avaliação de um profissional. Em nenhuma hipótese o titular
+   será responsável por danos decorrentes do uso ou da impossibilidade de uso
+   do Software.
+
+7. FORO
+   Fica eleito o foro da comarca do domicílio do titular para dirimir
+   quaisquer questões relativas a esta licença.
+
+Para solicitar autorização de uso ou licenciamento comercial, entre em contato
+com o titular pelo perfil do GitHub: https://github.com/Joloano
