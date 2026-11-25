@@ -86,3 +86,21 @@ Requer Python 3.10+, sem dependências. A residência é escolhida pela constant
 ## Contribuindo
 
 Leia o [AGENTS.md](AGENTS.md): stack, estrutura, regras do agente e convenções de branch, commit e PR.
+Ao contribuir, você concorda que a contribuição poderá ser incorporada ao software nos termos da licença.
+
+## Licença
+
+**Software proprietário — © 2026 Joloano Korzekwa Pereira. Todos os direitos reservados.**
+
+| Você pode | Você não pode (sem autorização por escrito) |
+|---|---|
+| Ver o código, se tiver acesso ao repositório | Copiar, redistribuir ou publicar o código |
+| Executar o sistema para a finalidade autorizada (ex.: avaliação acadêmica, colaboração) | Usar comercialmente ou oferecer como serviço (SaaS) |
+| Sugerir melhorias por issues e PRs | Criar produtos derivados ou fazer engenharia reversa |
+
+- Bibliotecas de terceiros mantêm suas próprias licenças.
+- O dataset `dados/dataset_consumo_energia.csv` foi fornecido pela disciplina UFSM01280 e pertence a seus autores.
+- As recomendações são estimativas, fornecidas sem garantia.
+
+Para licenciamento comercial ou autorização de uso, fale com [@Joloano](https://github.com/Joloano).
+Texto completo em [LICENSE](LICENSE).
