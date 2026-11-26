@@ -9,7 +9,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Windows  (Linux/macOS: source .venv/bin/activate)
 pip install -e ".[dev]"
-cp ../.env.example ../.env    # ajuste POSTGRES_HOST=localhost fora do Docker
+cp ../.env.example ../.env    # lido da raiz do repositório; fora do Docker use POSTGRES_HOST=localhost
 uvicorn app.main:app --reload
 ```
 

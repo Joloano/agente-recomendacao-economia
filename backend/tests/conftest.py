@@ -8,8 +8,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.banco import obter_sessao
-from app.core.config import Ambiente, Configuracoes
-from app.main import criar_app
+from app.core.config import Ambiente, Configuracoes, obter_configuracoes
+from app.fabrica import criar_app
+
+
+@pytest.fixture(autouse=True)
+def _limpar_cache_de_configuracao() -> Iterator[None]:
+    obter_configuracoes.cache_clear()
+    yield
+    obter_configuracoes.cache_clear()
 
 
 @pytest.fixture
@@ -36,3 +43,4 @@ def cliente(app: FastAPI, sessao_memoria: Session) -> Iterator[TestClient]:
     app.dependency_overrides[obter_sessao] = lambda: sessao_memoria
     with TestClient(app) as cliente:
         yield cliente
+    app.dependency_overrides.clear()

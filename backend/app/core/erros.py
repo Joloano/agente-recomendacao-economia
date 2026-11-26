@@ -1,5 +1,6 @@
 """Erros no formato RFC 7807 (`application/problem+json`), com mensagens em português."""
 
+from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any
 
@@ -33,7 +34,13 @@ class AcessoNegado(ErroDominio):
     status = HTTPStatus.FORBIDDEN
 
 
-def problema(request: Request, status: int, detalhe: str, **extras: Any) -> JSONResponse:
+def problema(
+    request: Request,
+    status: int,
+    detalhe: str,
+    headers: Mapping[str, str] | None = None,
+    **extras: Any,
+) -> JSONResponse:
     corpo = {
         "type": "about:blank",
         "title": HTTPStatus(status).phrase,
@@ -42,7 +49,7 @@ def problema(request: Request, status: int, detalhe: str, **extras: Any) -> JSON
         "instance": request.url.path,
         **extras,
     }
-    return JSONResponse(corpo, status_code=status, media_type=TIPO_PROBLEMA)
+    return JSONResponse(corpo, status_code=status, media_type=TIPO_PROBLEMA, headers=headers)
 
 
 def _campo(loc: tuple[Any, ...]) -> str:
@@ -50,24 +57,30 @@ def _campo(loc: tuple[Any, ...]) -> str:
 
 
 async def _tratar_validacao(request: Request, exc: Exception) -> JSONResponse:
-    if not isinstance(
-        exc, RequestValidationError
-    ):  # pragma: no cover - registrado só para RequestValidationError
+    if not isinstance(exc, RequestValidationError):  # pragma: no cover
         raise exc
     erros = [{"campo": _campo(e["loc"]), "mensagem": e["msg"]} for e in exc.errors()]
     return problema(request, 422, "Dados inválidos.", erros=erros)
 
 
 async def _tratar_http(request: Request, exc: Exception) -> JSONResponse:
-    if not isinstance(
-        exc, StarletteHTTPException
-    ):  # pragma: no cover - registrado só para StarletteHTTPException
+    if not isinstance(exc, StarletteHTTPException):  # pragma: no cover
         raise exc
-    return problema(request, exc.status_code, str(exc.detail))
+    # Preserva cabeçalhos como WWW-Authenticate (401) e Allow (405).
+    headers = getattr(exc, "headers", None)
+    if isinstance(exc.detail, str):
+        return problema(request, exc.status_code, exc.detail, headers=headers)
+    return problema(
+        request,
+        exc.status_code,
+        HTTPStatus(exc.status_code).phrase,
+        headers=headers,
+        dados=exc.detail,
+    )
 
 
 async def _tratar_dominio(request: Request, exc: Exception) -> JSONResponse:
-    if not isinstance(exc, ErroDominio):  # pragma: no cover - registrado só para ErroDominio
+    if not isinstance(exc, ErroDominio):  # pragma: no cover
         raise exc
     return problema(request, exc.status, exc.detalhe)
 
