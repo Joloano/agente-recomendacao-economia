@@ -30,6 +30,9 @@ Diferenças intencionais em relação ao original:
 - O consumo não é arredondado a 3 casas a cada passo. Com os dados atuais o resultado é idêntico.
 - Com vários recursos, o desempate usa a nota de economia normalizada e, depois, a ordem dos
   recursos e a ordem de cadastro, para não comparar unidades diferentes.
+- Utilidade e nota de economia são comparadas com 6 casas decimais no desempate (o original
+  arredondava só a utilidade). Economias cujas notas diferem menos de 0,000001 empatam e seguem
+  a ordem de cadastro; com quantidades de até 3 casas isso nunca ocorre.
 
 ## Alternativas consideradas
 

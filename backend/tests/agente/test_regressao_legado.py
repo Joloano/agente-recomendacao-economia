@@ -111,6 +111,15 @@ class Simulacoes:
         assert consumo == _d(self.estado_legado["consumo_estimado_kwh"])
         assert self.estado.aceitas == self.estado_legado["aceitas"]
         assert self.estado.rejeitadas == self.estado_legado["rejeitadas"]
+        historico = [
+            (h.oportunidade_id, h.resposta.value, h.consumo_antes, h.consumo_depois)
+            for h in self.estado.historico
+        ]
+        historico_legado = [
+            (h["equipamento_id"], h["resposta"], _d(h["consumo_antes"]), _d(h["consumo_depois"]))
+            for h in self.estado_legado["historico"]
+        ]
+        assert historico == historico_legado
 
 
 @pytest.mark.parametrize("residencia", RESIDENCIAS)
