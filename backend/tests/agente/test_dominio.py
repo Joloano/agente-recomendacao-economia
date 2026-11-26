@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -37,3 +38,20 @@ def test_consumo_negativo_e_recusado() -> None:
 def test_unidade_por_recurso() -> None:
     assert Recurso.ENERGIA.unidade == "kWh"
     assert Recurso.AGUA.unidade == "L"
+
+
+def test_tolerancia_da_soma_dos_pesos_e_inclusiva_ate_0_001() -> None:
+    Pesos(Decimal("0.251"), Decimal("0.25"), Decimal("0.25"), Decimal("0.25"))  # soma 1,001
+    with pytest.raises(ErroAgente, match="somar 1"):
+        Pesos(Decimal("0.2511"), Decimal("0.25"), Decimal("0.25"), Decimal("0.25"))
+
+
+@pytest.mark.parametrize("valor", [0.5, Decimal("NaN"), Decimal("Infinity")])
+def test_economia_precisa_ser_decimal_finito(valor: object) -> None:
+    with pytest.raises(ErroAgente, match="economia_potencial deve ser um Decimal finito"):
+        replace(oportunidade(), economia_potencial=valor)  # type: ignore[arg-type]
+
+
+def test_peso_float_e_recusado() -> None:
+    with pytest.raises(ErroAgente, match="peso_economia deve ser um Decimal finito"):
+        Pesos(0.5, Decimal("0.5"), Decimal(0), Decimal(0))  # type: ignore[arg-type]

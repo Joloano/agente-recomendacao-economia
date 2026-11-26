@@ -3,11 +3,14 @@ from decimal import Decimal
 import pytest
 
 from app.agente import (
+    FABRICA_PADRAO,
     AgenteRecomendador,
+    CalculadoraUtilidade,
     ErroAgente,
     Essencialidade,
     EstrategiaEnergia,
     FabricaEstrategia,
+    Recomendacao,
     RecomendacaoJaRespondida,
     Recurso,
     Resposta,
@@ -46,7 +49,8 @@ def test_recomenda_em_ordem_com_acao_e_contribuicoes(agente: AgenteRecomendador)
     assert [r.oportunidade.id for r in recomendacoes] == ["E3", "E4", "E2"]
     assert recomendacoes[0].acao.startswith("Desligar a TV")
     assert recomendacoes[1].acao == EstrategiaEnergia.ACAO_PADRAO
-    assert sum(recomendacoes[0].contribuicoes.values()) == recomendacoes[0].utilidade
+    assert sum(v for _, v in recomendacoes[0].contribuicoes) == recomendacoes[0].utilidade
+    assert hash(recomendacoes[0])
 
 
 def test_aceitar_reduz_consumo_e_tira_dos_pendentes(agente: AgenteRecomendador) -> None:
@@ -112,28 +116,76 @@ def test_inelegivel_nunca_entra_nem_pode_ser_respondida(agente: AgenteRecomendad
     assert agente.explicar_inelegibilidade(CASA[0]) == "não há economia possível"
 
 
-def test_recurso_sem_estrategia_registrada_e_recusado() -> None:
+def test_recurso_sem_estrategia_ou_repetido_e_recusado() -> None:
     with pytest.raises(ErroAgente, match="não suportado"):
         AgenteRecomendador([Recurso.AGUA])
     with pytest.raises(ErroAgente, match="ao menos um"):
         AgenteRecomendador([])
+    with pytest.raises(ErroAgente, match="repetidos"):
+        AgenteRecomendador([Recurso.ENERGIA, Recurso.ENERGIA])
 
 
-def test_fabrica_permite_registrar_novos_recursos() -> None:
-    class EstrategiaAguaFalsa(EstrategiaEnergia):
-        recurso = Recurso.AGUA
+def test_ids_repetidos_sao_recusados(agente: AgenteRecomendador) -> None:
+    with pytest.raises(ErroAgente, match="repetidos: E2"):
+        agente.perceber([*CASA, CASA[1]])
 
-    FabricaEstrategia.registrar(EstrategiaAguaFalsa)
-    try:
-        agente = AgenteRecomendador([Recurso.ENERGIA, Recurso.AGUA])
-        agua = oportunidade(id="A1", recurso=Recurso.AGUA, economia_potencial="50")
-        estado = agente.perceber([*CASA, agua])
 
-        ids = [
-            r.oportunidade.id for r in agente.recomendar([*CASA, agua], PESOS_EQUILIBRADOS, estado)
-        ]
+def test_explicacao_so_para_recursos_do_agente(agente: AgenteRecomendador) -> None:
+    with pytest.raises(ErroAgente, match="não trata"):
+        agente.explicar_inelegibilidade(oportunidade(recurso=Recurso.AGUA))
 
-        assert "A1" in ids
-        assert estado.consumo_inicial[Recurso.AGUA] == agua.consumo_diario
-    finally:
-        FabricaEstrategia._registro.pop(Recurso.AGUA)
+
+class EstrategiaAguaFalsa(EstrategiaEnergia):
+    recurso = Recurso.AGUA
+
+
+FABRICA_COM_AGUA = FABRICA_PADRAO.com(EstrategiaAguaFalsa)
+
+
+def test_fabrica_e_imutavel_e_recusa_duplicados() -> None:
+    assert FABRICA_PADRAO.recursos == {Recurso.ENERGIA}
+    assert FABRICA_COM_AGUA.recursos == {Recurso.ENERGIA, Recurso.AGUA}
+    with pytest.raises(ErroAgente, match="duplicada"):
+        FabricaEstrategia([EstrategiaEnergia, EstrategiaEnergia])
+
+
+def test_varios_recursos_numa_lista_unica() -> None:
+    agente = AgenteRecomendador([Recurso.ENERGIA, Recurso.AGUA], fabrica=FABRICA_COM_AGUA)
+    agua = oportunidade(id="A1", recurso=Recurso.AGUA, economia_potencial="50")
+    estado = agente.perceber([*CASA, agua])
+
+    ids = [r.oportunidade.id for r in agente.recomendar([*CASA, agua], PESOS_EQUILIBRADOS, estado)]
+
+    assert set(ids) == {"E2", "E3", "E4", "A1"}
+    assert estado.consumo_inicial[Recurso.AGUA] == agua.consumo_diario
+
+
+def test_desempate_entre_recursos_usa_nota_normalizada_e_nao_valor_bruto() -> None:
+    agente = AgenteRecomendador([Recurso.ENERGIA, Recurso.AGUA], fabrica=FABRICA_COM_AGUA)
+    # Mesmas notas nos dois recursos: cada uma é a maior economia do seu recurso (nota 5).
+    energia = oportunidade(id="E", economia_potencial="0.4", ordem=1)
+    agua = oportunidade(id="A", recurso=Recurso.AGUA, economia_potencial="50", ordem=0)
+    estado = agente.perceber([energia, agua])
+
+    ordem = [
+        r.oportunidade.id for r in agente.recomendar([energia, agua], PESOS_EQUILIBRADOS, estado)
+    ]
+
+    # Empate total: decide a ordem dos recursos (energia primeiro), não os 50 L contra 0,4 kWh.
+    assert ordem == ["E", "A"]
+
+
+def test_calculadora_injetada_e_usada_pelas_estrategias() -> None:
+    class CalculadoraEspia(CalculadoraUtilidade):
+        chamadas = 0
+
+        def notas(self, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+            CalculadoraEspia.chamadas += 1
+            return super().notas(*args, **kwargs)  # type: ignore[arg-type]
+
+    agente = AgenteRecomendador(calculadora=CalculadoraEspia())
+    recomendacoes: list[Recomendacao] = agente.recomendar(
+        CASA, PESOS_EQUILIBRADOS, agente.perceber(CASA)
+    )
+
+    assert CalculadoraEspia.chamadas == len(recomendacoes) == 3

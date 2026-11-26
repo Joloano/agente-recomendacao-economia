@@ -14,7 +14,10 @@ class Recurso(StrEnum):
 
     @property
     def unidade(self) -> str:
-        return "kWh" if self is Recurso.ENERGIA else "L"
+        return _UNIDADES[self]
+
+
+_UNIDADES = {Recurso.ENERGIA: "kWh", Recurso.AGUA: "L"}
 
 
 class Essencialidade(StrEnum):
@@ -34,9 +37,19 @@ class ErroAgente(Exception):
     """Violação de regra do agente."""
 
 
+def _exigir_decimal(nome: str, valor: object) -> None:
+    """Quantidades e pesos são Decimal finitos (nunca float, NaN ou infinito)."""
+    if not isinstance(valor, Decimal) or not valor.is_finite():
+        raise ErroAgente(f"{nome} deve ser um Decimal finito.")
+
+
 @dataclass(frozen=True, slots=True)
 class Pesos:
-    """Prioridades dos moradores; somam 1."""
+    """Prioridades dos moradores.
+
+    Cada peso fica entre 0 e 1 e a soma precisa ser 1, com tolerância de 0,001 inclusive
+    (o agente original só avisava; aqui a regra é imposta, ver ADR 0001).
+    """
 
     economia: Decimal
     conforto: Decimal
@@ -44,6 +57,8 @@ class Pesos:
     baixo_esforco: Decimal
 
     def __post_init__(self) -> None:
+        for criterio, valor in self.como_dict().items():
+            _exigir_decimal(f"peso_{criterio}", valor)
         valores = self.como_dict().values()
         if any(not Decimal(0) <= valor <= Decimal(1) for valor in valores):
             raise ErroAgente("Cada peso deve estar entre 0 e 1.")
@@ -82,6 +97,8 @@ class Oportunidade:
     ordem: int = 0
 
     def __post_init__(self) -> None:
+        _exigir_decimal("consumo_diario", self.consumo_diario)
+        _exigir_decimal("economia_potencial", self.economia_potencial)
         _validar_escala("impacto_conforto", self.impacto_conforto)
         _validar_escala("flexibilidade", self.flexibilidade)
         _validar_escala("esforco", self.esforco)
@@ -110,8 +127,12 @@ class Recomendacao:
     oportunidade: Oportunidade
     notas: Notas
     utilidade: Decimal
-    contribuicoes: dict[Criterio, Decimal]
+    # Tupla (e não dict) para manter o objeto realmente imutável e hasheável.
+    contribuicoes: tuple[tuple[Criterio, Decimal], ...]
     acao: str
+
+    def contribuicao(self, criterio: Criterio) -> Decimal:
+        return dict(self.contribuicoes)[criterio]
 
     @property
     def recurso(self) -> Recurso:

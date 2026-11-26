@@ -19,8 +19,17 @@ infraestrutura. Variações por recurso usam Strategy + Template Method + Factor
 elegibilidade, Chain of Responsibility; o acesso externo ao agente, uma Facade. Detalhes em
 [padrões de projeto](../padroes-de-projeto.md).
 
-Quantidades e dinheiro usam `Decimal`. O comportamento do script original é garantido por testes
-de regressão que comparam as dez residências do dataset.
+Quantidades e dinheiro usam `Decimal` finitos (float, NaN e infinito são recusados).
+O comportamento do script original é garantido por testes de regressão que comparam as dez
+residências do dataset passo a passo (elegíveis, ordem, utilidades, consumo e histórico),
+com o usuário aceitando, rejeitando ou alternando respostas.
+
+Diferenças intencionais em relação ao original:
+
+- Pesos que não somam 1 (com tolerância de 0,001, inclusive) são **recusados**; o original só avisava.
+- O consumo não é arredondado a 3 casas a cada passo. Com os dados atuais o resultado é idêntico.
+- Com vários recursos, o desempate usa a nota de economia normalizada e, depois, a ordem dos
+  recursos e a ordem de cadastro, para não comparar unidades diferentes.
 
 ## Alternativas consideradas
 

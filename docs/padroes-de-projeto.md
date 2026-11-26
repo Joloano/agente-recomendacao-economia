@@ -28,7 +28,7 @@ Decisão registrada em [ADR 0001](adr/0001-arquitetura-em-camadas.md).
 | [Facade](https://refactoring.guru/pt-br/design-patterns/facade) | `app/agente/agente.py` → `AgenteRecomendador` | API e voz usam uma interface simples (`perceber`, `recomendar`, `responder`) sem conhecer estratégias, regras e cálculos | ✅ |
 | [Strategy](https://refactoring.guru/pt-br/design-patterns/strategy) | `app/agente/estrategias.py` → `EstrategiaRecurso`, `EstrategiaEnergia` | Energia e água variam sem `if recurso == ...` espalhado | ✅ energia · água na #33 |
 | [Template Method](https://refactoring.guru/pt-br/design-patterns/template-method) | `EstrategiaRecurso.recomendar` | O ciclo filtrar → pontuar → ordenar é fixo; só `descricao_acao` varia | ✅ |
-| [Factory Method](https://refactoring.guru/pt-br/design-patterns/factory-method) | `FabricaEstrategia.para(recurso)` | Novo recurso entra registrando uma estratégia, sem tocar em quem a usa | ✅ |
+| Registry / Simple Factory (relacionado ao [Factory Method](https://refactoring.guru/pt-br/design-patterns/factory-method)) | `FabricaEstrategia` (instância imutável, injetada no agente) | Cria a estratégia de cada recurso; um recurso novo entra com `fabrica.com(...)`, sem estado global e sem tocar em quem a usa | ✅ |
 | [Chain of Responsibility](https://refactoring.guru/pt-br/design-patterns/chain-of-responsibility) | `app/agente/regras.py` | Cada regra de elegibilidade isolada e testável, com o motivo da reprovação (usado na explicabilidade, #101) | ✅ |
 | [Builder](https://refactoring.guru/pt-br/design-patterns/builder) | `tests/agente/construtor.py` | Dados de teste válidos, mudando só o campo que importa | ✅ testes |
 | [State](https://refactoring.guru/pt-br/design-patterns/state) | Simulação (ativa/encerrada) e recomendação (pendente/aceita/rejeitada) | Transições inválidas viram erro de domínio | Parcial: `EstadoSimulacao` impede resposta repetida · completo na #34 |
@@ -42,16 +42,26 @@ imutáveis (`Pesos`, `Oportunidade`, `Notas`), que se validam na criação.
 
 ## Exemplo: adicionar um novo recurso
 
+1. Acrescente o membro ao enum `Recurso` e a unidade em `_UNIDADES` (`app/agente/dominio.py`).
+2. Crie a estratégia, que só precisa dizer a ação de cada categoria:
+
 ```python
 class EstrategiaGas(EstrategiaRecurso):
     recurso = Recurso.GAS
 
     def descricao_acao(self, oportunidade: Oportunidade) -> str:
         return "Tampar as panelas ao cozinhar."
-
-FabricaEstrategia.registrar(EstrategiaGas)
-AgenteRecomendador([Recurso.ENERGIA, Recurso.GAS])  # nada mais muda
 ```
+
+3. Monte uma fábrica com ela e entregue ao agente. Regras, cálculo, ordenação e estado não mudam:
+
+```python
+fabrica = FABRICA_PADRAO.com(EstrategiaGas)
+AgenteRecomendador([Recurso.ENERGIA, Recurso.GAS], fabrica=fabrica)
+```
+
+Com vários recursos, a nota de economia é normalizada dentro de cada um, e o desempate usa essa
+nota (nunca compara kWh com litros).
 
 ## Anti-padrões que evitamos
 

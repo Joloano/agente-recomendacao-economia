@@ -216,9 +216,10 @@ classDiagram
         +explicar_inelegibilidade(oportunidade) str
     }
     class FabricaEstrategia {
-        <<Factory Method>>
-        +registrar(tipo)$
-        +para(recurso)$ EstrategiaRecurso
+        <<Registry imutável>>
+        +recursos frozenset~Recurso~
+        +com(estrategias) FabricaEstrategia
+        +para(recurso, calculadora) EstrategiaRecurso
     }
     class EstrategiaRecurso {
         <<abstract · Strategy / Template Method>>
@@ -226,7 +227,7 @@ classDiagram
         +recomendar(oportunidades, pesos, pendentes) Recomendacao[]
         +elegiveis(oportunidades) Oportunidade[]
         +motivo_inelegivel(oportunidade) str
-        #descricao_acao(oportunidade)* str
+        +descricao_acao(oportunidade)* str
     }
     class EstrategiaEnergia
     class RegraElegibilidade {
@@ -264,6 +265,7 @@ classDiagram
     AgenteRecomendador --> FabricaEstrategia
     AgenteRecomendador o-- EstrategiaRecurso
     AgenteRecomendador --> EstadoSimulacao
+    AgenteRecomendador --> CalculadoraUtilidade
     FabricaEstrategia ..> EstrategiaRecurso : cria
     EstrategiaRecurso <|-- EstrategiaEnergia
     EstrategiaRecurso --> RegraElegibilidade

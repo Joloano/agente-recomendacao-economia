@@ -1,12 +1,13 @@
-"""Estratégias por recurso (padrões Strategy, Template Method e Factory Method).
+"""Estratégias por recurso (padrões Strategy e Template Method) e o registro que as cria.
 
 `EstrategiaRecurso.recomendar` fixa o ciclo do agente (filtrar → pontuar → ordenar);
 cada recurso só define o que varia: qual recurso atende e qual ação sugerir.
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from decimal import Decimal
+from types import MappingProxyType
 from typing import ClassVar
 
 from app.agente.calculadora import CalculadoraUtilidade
@@ -88,19 +89,36 @@ class EstrategiaEnergia(EstrategiaRecurso):
 
 
 class FabricaEstrategia:
-    """Factory Method: novos recursos são registrados aqui, sem mudar quem os usa."""
+    """Registro imutável (Simple Factory / Registry) que cria a estratégia de cada recurso.
 
-    _registro: ClassVar[dict[Recurso, type[EstrategiaRecurso]]] = {
-        Recurso.ENERGIA: EstrategiaEnergia,
-    }
+    É uma instância entregue por injeção de dependência, não um estado global: cada agente
+    (ou teste) usa a fábrica que receber. Para um novo recurso, crie outra fábrica com
+    `com(...)`, sem alterar a original.
+    """
 
-    @classmethod
-    def registrar(cls, estrategia: type[EstrategiaRecurso]) -> None:
-        cls._registro[estrategia.recurso] = estrategia
+    def __init__(self, estrategias: Iterable[type[EstrategiaRecurso]]) -> None:
+        registro: dict[Recurso, type[EstrategiaRecurso]] = {}
+        for estrategia in estrategias:
+            if estrategia.recurso in registro:
+                raise ErroAgente(f"Estratégia duplicada para {estrategia.recurso}.")
+            registro[estrategia.recurso] = estrategia
+        self._registro: Mapping[Recurso, type[EstrategiaRecurso]] = MappingProxyType(registro)
 
-    @classmethod
-    def para(cls, recurso: Recurso) -> EstrategiaRecurso:
+    @property
+    def recursos(self) -> frozenset[Recurso]:
+        return frozenset(self._registro)
+
+    def com(self, *estrategias: type[EstrategiaRecurso]) -> "FabricaEstrategia":
+        return FabricaEstrategia([*self._registro.values(), *estrategias])
+
+    def para(
+        self, recurso: Recurso, calculadora: CalculadoraUtilidade | None = None
+    ) -> EstrategiaRecurso:
         try:
-            return cls._registro[recurso]()
+            estrategia = self._registro[recurso]
         except KeyError:
             raise ErroAgente(f"Recurso ainda não suportado: {recurso}.") from None
+        return estrategia(calculadora=calculadora)
+
+
+FABRICA_PADRAO = FabricaEstrategia([EstrategiaEnergia])

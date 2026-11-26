@@ -1,7 +1,7 @@
 """Núcleo do agente recomendador: Python puro, sem banco, HTTP ou entrada/saída.
 
 Padrões aplicados (ver docs/padroes-de-projeto.md): Facade (`AgenteRecomendador`),
-Strategy + Template Method (`EstrategiaRecurso`), Factory Method (`FabricaEstrategia`)
+Strategy + Template Method (`EstrategiaRecurso`), Registry/Simple Factory (`FabricaEstrategia`)
 e Chain of Responsibility (regras de elegibilidade).
 """
 
@@ -17,7 +17,12 @@ from app.agente.dominio import (
     Recomendacao,
     Recurso,
 )
-from app.agente.estrategias import EstrategiaEnergia, EstrategiaRecurso, FabricaEstrategia
+from app.agente.estrategias import (
+    FABRICA_PADRAO,
+    EstrategiaEnergia,
+    EstrategiaRecurso,
+    FabricaEstrategia,
+)
 from app.agente.simulacao import (
     EstadoSimulacao,
     RecomendacaoJaRespondida,
@@ -26,6 +31,7 @@ from app.agente.simulacao import (
 )
 
 __all__ = [
+    "FABRICA_PADRAO",
     "AgenteRecomendador",
     "CalculadoraUtilidade",
     "Criterio",

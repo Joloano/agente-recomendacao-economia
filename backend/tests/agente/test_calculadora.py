@@ -33,7 +33,7 @@ def test_utilidade_e_a_soma_ponderada_das_notas() -> None:
 
     contribuicoes = calc.contribuicoes(notas, pesos)
 
-    assert contribuicoes[Criterio.ECONOMIA] == Decimal("2.0")
+    assert dict(contribuicoes)[Criterio.ECONOMIA] == Decimal("2.0")
     assert calc.utilidade(contribuicoes) == Decimal("4.0")
 
 
@@ -48,7 +48,9 @@ def test_utilidade_fica_entre_1_e_5_quando_pesos_somam_1(nota: int) -> None:
 
 def _rec(id_: str, utilidade: str, economia: str, ordem: int) -> Recomendacao:
     op = oportunidade(id=id_, economia_potencial=economia, ordem=ordem)
-    return Recomendacao(op, Notas(*(Decimal(1),) * 4), Decimal(utilidade), {}, "")
+    # A nota de economia acompanha a economia bruta, como acontece dentro de um recurso.
+    notas = Notas(Decimal(economia) * 10, Decimal(1), Decimal(1), Decimal(1))
+    return Recomendacao(op, notas, Decimal(utilidade), (), "")
 
 
 def test_ordena_por_utilidade_depois_economia_depois_ordem_de_cadastro() -> None:

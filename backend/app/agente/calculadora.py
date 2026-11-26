@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from decimal import Decimal
 
-from app.agente.dominio import Criterio, Notas, Oportunidade, Pesos, Recomendacao
+from app.agente.dominio import Criterio, Notas, Oportunidade, Pesos, Recomendacao, Recurso
 
 ESCALA = Decimal(6)
 NOTA_MINIMA = Decimal(1)
@@ -23,22 +23,30 @@ class CalculadoraUtilidade:
             baixo_esforco=ESCALA - oportunidade.esforco,
         )
 
-    def contribuicoes(self, notas: Notas, pesos: Pesos) -> dict[Criterio, Decimal]:
+    def contribuicoes(self, notas: Notas, pesos: Pesos) -> tuple[tuple[Criterio, Decimal], ...]:
         valores_notas = notas.como_dict()
-        return {
-            criterio: peso * valores_notas[criterio] for criterio, peso in pesos.como_dict().items()
-        }
+        return tuple(
+            (criterio, peso * valores_notas[criterio])
+            for criterio, peso in pesos.como_dict().items()
+        )
 
-    def utilidade(self, contribuicoes: dict[Criterio, Decimal]) -> Decimal:
-        return sum(contribuicoes.values(), Decimal(0))
+    def utilidade(self, contribuicoes: tuple[tuple[Criterio, Decimal], ...]) -> Decimal:
+        return sum((valor for _, valor in contribuicoes), Decimal(0))
 
     def ordenar(self, recomendacoes: Iterable[Recomendacao]) -> list[Recomendacao]:
-        """Maior utilidade; empate → maior economia; persistindo → ordem de cadastro."""
+        """Maior utilidade; empate → maior economia; persistindo → ordem de cadastro.
+
+        A economia do desempate é a nota normalizada (1 a 5), e não o valor bruto, para não
+        comparar kWh com litros. Dentro de um recurso a ordem é a mesma, pois a nota é
+        proporcional à economia. O recurso entra antes da ordem de cadastro porque cada
+        recurso numera seus equipamentos de forma independente.
+        """
         return sorted(
             recomendacoes,
             key=lambda r: (
                 -r.utilidade.quantize(CASAS_DESEMPATE),
-                -r.oportunidade.economia_potencial,
+                -r.notas.economia.quantize(CASAS_DESEMPATE),
+                list(Recurso).index(r.recurso),
                 r.oportunidade.ordem,
             ),
         )
