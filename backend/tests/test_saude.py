@@ -54,3 +54,10 @@ def test_cors_permite_apenas_origens_configuradas(cliente: TestClient) -> None:
     assert permitido["access-control-allow-origin"] == "http://localhost:4200"
     assert "access-control-allow-credentials" not in permitido
     assert "access-control-allow-origin" not in negado
+
+
+def test_liveness_nao_depende_do_banco(cliente_sem_banco: TestClient) -> None:
+    resposta = cliente_sem_banco.get("/api/v1/health/live")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == {"status": "ok"}

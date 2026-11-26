@@ -9,7 +9,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
-- Imagem Docker da API: multi-stage com `python:3.12-slim`, usuário sem privilégios, `HEALTHCHECK` e entrypoint que aplica as migrações e sobe o Uvicorn.
+- Imagem Docker da API: multi-stage, base fixada por digest, dependências com hashes (`requirements-lock.txt`), usuário sem privilégios e código só leitura, `HEALTHCHECK` de liveness e entrypoint que migra (com advisory lock entre réplicas) e sobe o Uvicorn.
+- Rota `/api/v1/health/live` (liveness sem banco) e Dependabot para a imagem base, dependências Python e Actions.
 - Banco PostgreSQL: modelos SQLAlchemy 2 (usuário, residência, preferência, categoria, equipamento, simulação, recomendação e feedback) com CHECKs de escalas, medida conforme o recurso e chaves estrangeiras indexadas; Alembic com migração inicial e testes de integração (upgrade, downgrade, sincronia modelo × migração e constraints).
 - Núcleo do agente em Python puro (`app/agente/`) com Facade, Strategy, Template Method, Factory Method e Chain of Responsibility; valores em `Decimal`, explicação do motivo de inelegibilidade e contribuição de cada critério; testes de regressão que reproduzem o agente original em R01–R10.
 - Documentação de padrões de projeto, ADR 0001 (arquitetura em camadas) e diagrama de classes do núcleo.

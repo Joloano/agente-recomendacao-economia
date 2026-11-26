@@ -15,3 +15,11 @@ tests/
 Dockerfile
 .dockerignore
 README.md
+# Defensivo: nunca enviar chaves, histórico ou configurações locais ao build
+.git
+*.pem
+*.key
+*.log
+.idea/
+.vscode/
+docker-compose*.yml

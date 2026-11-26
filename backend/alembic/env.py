@@ -3,7 +3,7 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from app.core.config import obter_configuracoes
 from app.modelos import Base
@@ -20,6 +20,8 @@ url = url_externa or obter_configuracoes().url_banco.render_as_string(hide_passw
 config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 target_metadata = Base.metadata
+# Número fixo e arbitrário que identifica o lock das migrações deste projeto.
+CHAVE_LOCK_MIGRACAO = 4_718_201
 
 
 def executar_offline() -> None:
@@ -41,9 +43,21 @@ def executar_online() -> None:
         poolclass=pool.NullPool,
     )
     with conectavel.connect() as conexao:
-        context.configure(connection=conexao, target_metadata=target_metadata, compare_type=True)
-        with context.begin_transaction():
-            context.run_migrations()
+        # Lock de sessão: com várias réplicas subindo juntas, só uma migra; as outras
+        # esperam e, ao entrar, encontram o banco já na última versão.
+        conexao.execute(text("SELECT pg_advisory_lock(:chave)"), {"chave": CHAVE_LOCK_MIGRACAO})
+        conexao.commit()
+        try:
+            context.configure(
+                connection=conexao, target_metadata=target_metadata, compare_type=True
+            )
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            conexao.execute(
+                text("SELECT pg_advisory_unlock(:chave)"), {"chave": CHAVE_LOCK_MIGRACAO}
+            )
+            conexao.commit()
 
 
 if context.is_offline_mode():

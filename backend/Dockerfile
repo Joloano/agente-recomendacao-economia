@@ -1,27 +1,30 @@
 # syntax=docker/dockerfile:1.7
 
+# Base fixada por digest (build reproduzível). O Dependabot atualiza o digest e o lockfile;
+# o rebuild traz as correções de segurança do sistema operacional.
+ARG IMAGEM_BASE=python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b
+
 # ---------- Estágio 1: dependências ----------
-FROM python:3.12-slim AS dependencias
+FROM ${IMAGEM_BASE} AS dependencias
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-WORKDIR /build
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Só o pyproject primeiro: a camada de dependências fica em cache enquanto ele não mudar.
-COPY pyproject.toml ./
-RUN mkdir app && touch app/__init__.py \
-    && pip install . \
-    && pip uninstall -y agente-recomendador
+# Versões exatas e hashes conferidos; a camada só é refeita quando o lockfile muda.
+COPY requirements-lock.txt /tmp/requirements-lock.txt
+RUN pip install --require-hashes --no-deps -r /tmp/requirements-lock.txt \
+    && pip uninstall -y pip
 
 # ---------- Estágio 2: imagem final ----------
-FROM python:3.12-slim AS final
+FROM ${IMAGEM_BASE} AS final
 
 LABEL org.opencontainers.image.title="agente-recomendador-api" \
       org.opencontainers.image.description="API REST do agente recomendador de energia e água" \
+      org.opencontainers.image.source="https://github.com/Joloano/agente-recomendacao-economia" \
       org.opencontainers.image.licenses="LicenseRef-Proprietaria"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,17 +37,19 @@ RUN groupadd --system --gid 1001 app \
 
 COPY --from=dependencias /opt/venv /opt/venv
 
+# Código pertence ao root e é só leitura para o usuário da aplicação.
 WORKDIR /app
-COPY --chown=app:app alembic.ini ./
-COPY --chown=app:app alembic ./alembic
-COPY --chown=app:app app ./app
-COPY --chown=app:app --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 USER app
 EXPOSE 8000
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORTA\", \"8000\")}/api/v1/health', timeout=4)" || exit 1
+# Liveness: não depende do banco, para uma falha externa não causar reinícios em loop.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORTA\", \"8000\")}/api/v1/health/live', timeout=4)" || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["api"]
