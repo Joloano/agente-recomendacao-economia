@@ -134,7 +134,7 @@ jobs:
       - name: Verificar projeto Angular
         id: existe
         run: test -f package.json && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.existe.outputs.sim == 'true'
         with:
           node-version: 22
