@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - uses: pre-commit/action@v3.0.1
@@ -86,7 +86,7 @@ jobs:
       - name: Verificar projeto Python
         id: existe
         run: test -f pyproject.toml && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.existe.outputs.sim == 'true'
         with:
           python-version: "3.12"
