@@ -10,6 +10,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ### Adicionado
 - Pipeline de CI no GitHub Actions: pre-commit, backend (ruff, mypy, pytest com Postgres e cobertura), frontend (lint, testes e build) e build das imagens Docker, com filtro por pasta e job agregador `CI concluído`.
+- Backend FastAPI: rota `/api/v1/health` com verificação do banco, Swagger em `/docs`, CORS e erros no formato RFC 7807.
+- Configuração 12-factor validada na subida: perfis `dev`, `teste`, `staging` e `producao`; produção recusa segredos padrão ou fracos.
 - `.env.example` com todas as variáveis de ambiente.
 - Processo de contribuição: `CONTRIBUTING.md`, Definição de Pronto, templates de issue e PR, `CODEOWNERS`.
 - `pre-commit` com ruff, gitleaks, mypy, prettier, eslint e validação de Conventional Commits; validação do título do PR no CI; merge somente por squash.
