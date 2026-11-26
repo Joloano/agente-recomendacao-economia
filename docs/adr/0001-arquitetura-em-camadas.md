@@ -1,0 +1,47 @@
+# ADR 0001 — Arquitetura em camadas com domínio puro
+
+- **Situação:** aceita
+- **Data:** 2026-11-25
+- **Issues:** #32, #114
+
+## Contexto
+
+O agente original era um script único em que leitura do CSV, regras, cálculo e interação no
+terminal estavam misturados. O produto precisa expor o mesmo agente por API REST, assistentes de
+voz e, no futuro, automações da casa, com dados no PostgreSQL. Precisamos testar as regras sem
+banco e trocar a forma de entrada/saída sem reescrever o agente.
+
+## Decisão
+
+Separar o backend em camadas: **api** (rotas FastAPI finas) → **services** (casos de uso) →
+**agente** (domínio em Python puro) e **repositórios** (SQLAlchemy). O domínio não importa nada de
+infraestrutura. Variações por recurso usam Strategy + Template Method, criadas por um registro imutável; as regras de
+elegibilidade, Chain of Responsibility; o acesso externo ao agente, uma Facade. Detalhes em
+[padrões de projeto](../padroes-de-projeto.md).
+
+Quantidades e dinheiro usam `Decimal` finitos (float, NaN e infinito são recusados).
+O comportamento do script original é garantido por testes de regressão que comparam as dez
+residências do dataset passo a passo (elegíveis, ordem, utilidades, consumo e histórico),
+com o usuário aceitando, rejeitando ou alternando respostas.
+
+Diferenças intencionais em relação ao original:
+
+- Pesos que não somam 1 (com tolerância de 0,001, inclusive) são **recusados**; o original só avisava.
+- O consumo não é arredondado a 3 casas a cada passo. Com os dados atuais o resultado é idêntico.
+- Com vários recursos, o desempate usa a nota de economia normalizada e, depois, a ordem dos
+  recursos e a ordem de cadastro, para não comparar unidades diferentes.
+- Utilidade e nota de economia são comparadas com 6 casas decimais no desempate (o original
+  arredondava só a utilidade). Economias cujas notas diferem menos de 0,000001 empatam e seguem
+  a ordem de cadastro; com quantidades de até 3 casas isso nunca ocorre.
+
+## Alternativas consideradas
+
+- **Manter funções soltas como no script**: simples, mas sem ponto de extensão para água e sem
+  isolamento para testes.
+- **Regras dentro dos modelos SQLAlchemy**: acopla o domínio ao banco e torna os testes lentos.
+
+## Consequências
+
+- ✅ Regras testáveis em milissegundos, sem banco.
+- ✅ Novo recurso (água, gás) exige só uma nova estratégia registrada.
+- ⚠️ Mais arquivos e conversões entre modelos do banco e objetos de domínio.
