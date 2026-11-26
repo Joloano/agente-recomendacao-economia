@@ -32,6 +32,20 @@ Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/
   dono_id, "Recurso")`. Cliente que tenta acessar dado de outra pessoa recebe **404**, para não
   revelar que o dado existe.
 
+## Usuários
+
+| Rota | Quem | O quê |
+|---|---|---|
+| `GET /api/v1/admin/usuarios?busca=&papel=&ativo=&pagina=&tamanho=` | admin | Lista paginada (`itens`, `total`, `pagina`, `tamanho`) |
+| `POST /api/v1/admin/usuarios` | admin | Cria usuário, inclusive admin |
+| `GET`/`PATCH`/`DELETE /api/v1/admin/usuarios/{id}` | admin | Detalhe, edição parcial (nome, e-mail, papel, ativo) e exclusão |
+| `GET`/`PATCH /api/v1/usuarios/eu` | qualquer usuário | Ver e editar nome e e-mail |
+| `POST /api/v1/usuarios/eu/senha` | qualquer usuário | Trocar a senha (exige a atual) |
+
+O sistema nunca fica sem admin ativo: rebaixar, desativar ou excluir o último admin dá 409. As
+linhas dos admins são travadas (`SELECT ... FOR UPDATE`) para duas requisições simultâneas não
+contornarem a regra.
+
 ## Docker
 
 ```bash
