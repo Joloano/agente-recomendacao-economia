@@ -1,6 +1,6 @@
 # Agente Recomendador de Energia e Água
 
-[![CI](https://github.com/Joloano/agente-recomendacao-energia/actions/workflows/ci.yml/badge.svg)](https://github.com/Joloano/agente-recomendacao-energia/actions/workflows/ci.yml)
+[![CI](https://github.com/Joloano/agente-recomendacao-economia/actions/workflows/ci.yml/badge.svg)](https://github.com/Joloano/agente-recomendacao-economia/actions/workflows/ci.yml)
 
 Plataforma web com um **agente inteligente** que recomenda ações personalizadas para reduzir o
 consumo de **energia elétrica** e de **água** em residências. Nasceu como o Trabalho 2 da disciplina
