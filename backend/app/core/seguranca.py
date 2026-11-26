@@ -1,8 +1,11 @@
 """Senhas (argon2id) e tokens de acesso (JWT)."""
 
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import cache
+from pathlib import Path
 
 import jwt
 from argon2 import PasswordHasher
@@ -27,8 +30,23 @@ class SenhaFraca(ValueError):
     """A senha não atende à política mínima."""
 
 
+def normalizar_senha(senha: str) -> str:
+    """NFKC (NIST 800-63B): a mesma senha digitada em teclados diferentes vira o mesmo texto."""
+    return unicodedata.normalize("NFKC", senha)
+
+
+@cache
+def _senhas_comuns() -> frozenset[str]:
+    arquivo = Path(__file__).parent / "dados" / "senhas_comuns.txt"
+    linhas = arquivo.read_text(encoding="utf-8").splitlines()
+    return frozenset(linha.strip() for linha in linhas if linha and not linha.startswith("#"))
+
+
 def validar_politica_senha(senha: str, email: str = "") -> None:
     """Política inspirada no NIST SP 800-63B: tamanho, sem regras de composição forçadas."""
+    senha = normalizar_senha(senha)
+    if any(unicodedata.category(c) == "Cc" for c in senha):
+        raise SenhaFraca("A senha não pode ter caracteres de controle.")
     if len(senha) < TAMANHO_MINIMO_SENHA:
         raise SenhaFraca(f"A senha precisa ter pelo menos {TAMANHO_MINIMO_SENHA} caracteres.")
     if len(senha) > TAMANHO_MAXIMO_SENHA:
@@ -37,16 +55,25 @@ def validar_politica_senha(senha: str, email: str = "") -> None:
         raise SenhaFraca("A senha é repetitiva demais.")
     if email and senha.lower() in {email.lower(), email.split("@", maxsplit=1)[0].lower()}:
         raise SenhaFraca("A senha não pode ser igual ao e-mail.")
+    if senha.lower() in _senhas_comuns():
+        raise SenhaFraca("Esta senha é muito comum. Escolha outra.")
 
 
 def gerar_hash(senha: str) -> str:
-    return _hasher.hash(senha)
+    return _hasher.hash(normalizar_senha(senha))
 
 
 def verificar_senha(senha: str, senha_hash: str | None) -> bool:
-    """Confere a senha; com `senha_hash=None` gasta o mesmo tempo e devolve False."""
+    """Confere a senha; com `senha_hash=None` gasta o mesmo tempo e devolve False.
+
+    Senhas absurdamente longas não chegam ao argon2 (não gastam CPU à toa), mas levam o
+    mesmo tempo de uma verificação comum.
+    """
+    if len(senha) > TAMANHO_MAXIMO_SENHA * 4:
+        senha, senha_hash = "x", None
     try:
-        return _hasher.verify(senha_hash or _HASH_FICTICIO, senha) and senha_hash is not None
+        resultado = _hasher.verify(senha_hash or _HASH_FICTICIO, normalizar_senha(senha))
+        return resultado and senha_hash is not None
     except (VerificationError, InvalidHashError, UnicodeError):
         return False
 

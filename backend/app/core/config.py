@@ -89,7 +89,8 @@ class ConfiguracoesBanco(BaseSettings):
 class Configuracoes(ConfiguracoesBanco):
     """Configuração completa da API."""
 
-    ambiente: Ambiente = Ambiente.DEV
+    # Seguro por padrão: sem AMBIENTE definido, valem as exigências de produção.
+    ambiente: Ambiente = Ambiente.PRODUCAO
     nome_app: str = "Agente Recomendador de Energia e Água"
     log_nivel: str = "INFO"
     cors_origens: Annotated[list[str], NoDecode] = Field(
@@ -97,7 +98,8 @@ class Configuracoes(ConfiguracoesBanco):
     )
 
     jwt_segredo: SecretStr = SecretStr("troque-por-um-segredo-longo-e-aleatorio")
-    jwt_algoritmo: str = "HS256"
+    # Só HMAC: com segredo compartilhado, outro algoritmo (ou "none") seria uma brecha.
+    jwt_algoritmo: Literal["HS256", "HS384", "HS512"] = "HS256"
     jwt_expiracao_minutos: int = Field(default=30, gt=0)
     jwt_refresh_expiracao_dias: int = Field(default=7, gt=0)
 

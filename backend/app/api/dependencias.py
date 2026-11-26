@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.banco import obter_sessao
 from app.core.config import Configuracoes, obter_configuracoes
-from app.core.erros import AcessoNegado, NaoAutenticado, NaoEncontrado
+from app.core.erros import AcessoNegado, NaoAutenticado, NaoEncontrado, TokenRecusado
 from app.core.seguranca import TokenInvalido, ler_token_acesso
 from app.modelos import Papel, Usuario
 
@@ -30,11 +30,11 @@ def usuario_atual(
     try:
         dados = ler_token_acesso(token, config)
     except TokenInvalido as erro:
-        raise NaoAutenticado("Sua sessão expirou ou é inválida. Entre novamente.") from erro
+        raise TokenRecusado("Sua sessão expirou ou é inválida. Entre novamente.") from erro
     usuario = sessao.get(Usuario, dados.usuario_id)
     # O papel é lido do banco (não do token): rebaixar ou desativar vale na hora.
     if usuario is None or not usuario.ativo:
-        raise NaoAutenticado("Sua sessão expirou ou é inválida. Entre novamente.")
+        raise TokenRecusado("Sua sessão expirou ou é inválida. Entre novamente.")
     return usuario
 
 

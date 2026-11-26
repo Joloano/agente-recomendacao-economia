@@ -12,7 +12,7 @@ from app.core.seguranca import (
     validar_politica_senha,
     verificar_senha,
 )
-from app.esquemas.autenticacao import RegistroEntrada
+from app.esquemas.autenticacao import RegistroEntrada, normalizar_email
 from app.modelos import Papel, Usuario
 
 MENSAGEM_LOGIN_INVALIDO = "E-mail ou senha incorretos."
@@ -46,15 +46,24 @@ class ServicoAutenticacao:
             self._sessao.commit()
         except IntegrityError as erro:
             self._sessao.rollback()
+            # Só a unicidade do e-mail vira 409; outra violação é bug e deve aparecer.
+            if _constraint_violada(erro) != "uq_usuario_email":
+                raise
             raise Conflito("Este e-mail já está cadastrado. Quer entrar?") from erro
         self._sessao.refresh(usuario)
         return usuario
 
     def autenticar(self, email: str, senha: str) -> Usuario:
         """Mesma mensagem e tempo parecido para e-mail inexistente, senha errada ou inativo."""
-        usuario = self._sessao.scalars(
-            select(Usuario).where(Usuario.email == email.strip().lower())
-        ).one_or_none()
+        try:
+            normalizado: str | None = normalizar_email(email)
+        except ValueError:
+            normalizado = None  # segue para o hash fictício e o 401 genérico
+        usuario = (
+            self._sessao.scalars(select(Usuario).where(Usuario.email == normalizado)).one_or_none()
+            if normalizado
+            else None
+        )
         senha_ok = verificar_senha(senha, usuario.senha_hash if usuario else None)
         if usuario is None or not senha_ok or not usuario.ativo:
             raise CredenciaisInvalidas(MENSAGEM_LOGIN_INVALIDO)
@@ -62,3 +71,8 @@ class ServicoAutenticacao:
             usuario.senha_hash = gerar_hash(senha)
             self._sessao.commit()
         return usuario
+
+
+def _constraint_violada(erro: IntegrityError) -> str | None:
+    diagnostico = getattr(erro.orig, "diag", None)
+    return getattr(diagnostico, "constraint_name", None)

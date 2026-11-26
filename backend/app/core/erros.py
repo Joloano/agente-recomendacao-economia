@@ -40,6 +40,14 @@ class NaoAutenticado(ErroDominio):
     cabecalhos: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
 
 
+class TokenRecusado(NaoAutenticado):
+    """Token presente, mas inválido ou expirado (RFC 6750, seção 3)."""
+
+    cabecalhos: ClassVar[Mapping[str, str] | None] = {
+        "WWW-Authenticate": 'Bearer error="invalid_token"'
+    }
+
+
 class DadosRecusados(ErroDominio):
     status = HTTPStatus.UNPROCESSABLE_ENTITY
 

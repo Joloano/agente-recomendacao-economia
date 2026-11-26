@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 import pytest
 
-from app.core.config import Configuracoes
+from app.core.config import Ambiente, Configuracoes
 from app.core.seguranca import (
     EMISSOR,
     PUBLICO,
@@ -19,7 +19,7 @@ from app.core.seguranca import (
 )
 from app.modelos import Papel
 
-CONFIG = Configuracoes(_env_file=None, jwt_segredo="s" * 48)
+CONFIG = Configuracoes(_env_file=None, ambiente=Ambiente.TESTE, jwt_segredo="s" * 48)
 ID = uuid.uuid4()
 
 
