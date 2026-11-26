@@ -1,0 +1,61 @@
+<button type="button" class="pular-para-conteudo" (click)="pularParaConteudo()">
+  Pular para o conteúdo
+</button>
+
+<mat-toolbar class="barra" role="banner">
+  @if (celular()) {
+    <button
+      mat-icon-button
+      (click)="menu.toggle()"
+      aria-label="Menu principal"
+      aria-controls="menu-principal"
+      [attr.aria-expanded]="menu.opened"
+    >
+      <mat-icon>menu</mat-icon>
+    </button>
+  }
+  <a class="marca" routerLink="/inicio" aria-label="Agente de Economia: página inicial">
+    <mat-icon class="energia" aria-hidden="true">bolt</mat-icon>
+    <mat-icon class="agua" aria-hidden="true">water_drop</mat-icon>
+    <span>Agente de Economia</span>
+  </a>
+  <span class="espaco"></span>
+  @if (usuario(); as u) {
+    <span class="usuario" data-testid="usuario">{{ u.nome }}</span>
+  }
+</mat-toolbar>
+
+<mat-sidenav-container class="container">
+  <mat-sidenav
+    #menu
+    id="menu-principal"
+    [mode]="celular() ? 'over' : 'side'"
+    [opened]="!celular()"
+    class="menu"
+    role="navigation"
+    aria-label="Menu principal"
+  >
+    <mat-nav-list>
+      @for (item of itens(); track item.rota) {
+        <a
+          mat-list-item
+          [routerLink]="item.rota"
+          routerLinkActive
+          #ativo="routerLinkActive"
+          [activated]="ativo.isActive"
+          [attr.aria-current]="ativo.isActive ? 'page' : null"
+          (click)="celular() && menu.close()"
+        >
+          <mat-icon matListItemIcon aria-hidden="true">{{ item.icone }}</mat-icon>
+          <span matListItemTitle>{{ item.rotulo }}</span>
+        </a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <main #conteudo id="conteudo" class="conteudo" tabindex="-1">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

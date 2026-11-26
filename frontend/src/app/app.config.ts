@@ -1,0 +1,27 @@
+import { registerLocaleData } from '@angular/common';
+import { provideHttpClient, withFetch } from '@angular/common/http';
+import localePt from '@angular/common/locales/pt';
+import {
+  ApplicationConfig,
+  DEFAULT_CURRENCY_CODE,
+  LOCALE_ID,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
+import { MAT_ICON_DEFAULT_OPTIONS } from '@angular/material/icon';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+
+import { routes } from './app.routes';
+
+registerLocaleData(localePt);
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideRouter(routes, withComponentInputBinding()),
+    provideHttpClient(withFetch()),
+    // Números com vírgula, datas dd/mm/aaaa e moeda em reais (Nielsen 2, #47).
+    { provide: LOCALE_ID, useValue: 'pt-BR' },
+    { provide: DEFAULT_CURRENCY_CODE, useValue: 'BRL' },
+    { provide: MAT_ICON_DEFAULT_OPTIONS, useValue: { fontSet: 'material-symbols-outlined' } },
+  ],
+};
