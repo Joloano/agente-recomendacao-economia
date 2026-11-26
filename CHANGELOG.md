@@ -9,6 +9,8 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
+- Núcleo do agente em Python puro (`app/agente/`) com Facade, Strategy, Template Method, Factory Method e Chain of Responsibility; valores em `Decimal`, explicação do motivo de inelegibilidade e contribuição de cada critério; testes de regressão que reproduzem o agente original em R01–R10.
+- Documentação de padrões de projeto, ADR 0001 (arquitetura em camadas) e diagrama de classes do núcleo.
 - Pipeline de CI no GitHub Actions: pre-commit, backend (ruff, mypy, pytest com Postgres e cobertura), frontend (lint, testes e build) e build das imagens Docker, com filtro por pasta e job agregador `CI concluído`.
 - Backend FastAPI: rota `/api/v1/health` com verificação do banco (timeout de conexão), Swagger em `/docs`, CORS restrito e erros no formato RFC 7807 preservando cabeçalhos.
 - Configuração 12-factor validada na subida: perfis `dev`, `teste`, `staging` e `producao`; em staging/produção exige variáveis explícitas, senhas fortes e CORS sem localhost ou curinga.

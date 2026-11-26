@@ -59,7 +59,7 @@ erDiagram
         decimal horas_uso_diario
         decimal consumo_diario_estimado
         boolean reducao_uso
-        enum essencialidade "essencial | importante | dispensavel"
+        enum essencialidade "essencial | importante | nao_essencial"
         int impacto_conforto_1a5
         int flexibilidade_1a5
         int esforco_1a5
@@ -198,4 +198,82 @@ classDiagram
     SimulacaoService --> AgenteRecomendador
     UsuarioService --> AuthService
     EquipamentoService --> Equipamento
+```
+
+## Núcleo do agente (`app/agente/`, implementado)
+
+Padrões em [padroes-de-projeto.md](padroes-de-projeto.md).
+
+```mermaid
+classDiagram
+    direction LR
+
+    class AgenteRecomendador {
+        <<Facade>>
+        +perceber(oportunidades) EstadoSimulacao
+        +recomendar(oportunidades, pesos, estado) Recomendacao[]
+        +responder(estado, oportunidade, resposta) RegistroFeedback
+        +explicar_inelegibilidade(oportunidade) str
+    }
+    class FabricaEstrategia {
+        <<Factory Method>>
+        +registrar(tipo)$
+        +para(recurso)$ EstrategiaRecurso
+    }
+    class EstrategiaRecurso {
+        <<abstract · Strategy / Template Method>>
+        +recurso Recurso
+        +recomendar(oportunidades, pesos, pendentes) Recomendacao[]
+        +elegiveis(oportunidades) Oportunidade[]
+        +motivo_inelegivel(oportunidade) str
+        #descricao_acao(oportunidade)* str
+    }
+    class EstrategiaEnergia
+    class RegraElegibilidade {
+        <<abstract · Chain of Responsibility>>
+        +encadear(proxima) RegraElegibilidade
+        +avaliar(oportunidade) str
+        #_reprovar(oportunidade)* str
+    }
+    class RegraReducaoUso
+    class RegraEconomiaPositiva
+    class RegraNaoEssencial
+    class RegraConfortoMaximo
+    class CalculadoraUtilidade {
+        +notas(oportunidade, maior_economia) Notas
+        +contribuicoes(notas, pesos) dict
+        +utilidade(contribuicoes) Decimal
+        +ordenar(recomendacoes) Recomendacao[]
+    }
+    class EstadoSimulacao {
+        +consumo_inicial dict~Recurso, Decimal~
+        +consumo_estimado dict~Recurso, Decimal~
+        +pendentes set
+        +registrar(oportunidade, resposta) RegistroFeedback
+    }
+    class Oportunidade {
+        <<value object>>
+    }
+    class Pesos {
+        <<value object>>
+    }
+    class Recomendacao {
+        <<value object>>
+    }
+
+    AgenteRecomendador --> FabricaEstrategia
+    AgenteRecomendador o-- EstrategiaRecurso
+    AgenteRecomendador --> EstadoSimulacao
+    FabricaEstrategia ..> EstrategiaRecurso : cria
+    EstrategiaRecurso <|-- EstrategiaEnergia
+    EstrategiaRecurso --> RegraElegibilidade
+    EstrategiaRecurso --> CalculadoraUtilidade
+    RegraElegibilidade <|-- RegraReducaoUso
+    RegraElegibilidade <|-- RegraEconomiaPositiva
+    RegraElegibilidade <|-- RegraNaoEssencial
+    RegraElegibilidade <|-- RegraConfortoMaximo
+    RegraElegibilidade --> RegraElegibilidade : próxima
+    EstrategiaRecurso ..> Recomendacao : produz
+    Recomendacao --> Oportunidade
+    CalculadoraUtilidade ..> Pesos
 ```
