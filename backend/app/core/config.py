@@ -8,6 +8,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -33,6 +34,20 @@ OBRIGATORIAS_EM_PRODUCAO = (
     "cors_origens",
     "url_frontend",
 )
+
+
+HOSTS_LOCAIS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}  # noqa: S104
+
+
+def _eh_origem_valida(origem: str) -> bool:
+    partes = urlparse(origem)
+    return (
+        partes.scheme in {"http", "https"}
+        and bool(partes.hostname)
+        and partes.path == ""
+        and not partes.query
+        and not partes.fragment
+    )
 
 
 class Ambiente(StrEnum):
@@ -86,7 +101,13 @@ class Configuracoes(BaseSettings):
     def _separar_origens(cls, valor: Any) -> Any:
         """Aceita `a,b` (formato do .env) ou uma lista."""
         if isinstance(valor, str):
-            return [origem.strip() for origem in valor.split(",") if origem.strip()]
+            valor = [origem.strip() for origem in valor.split(",") if origem.strip()]
+        for origem in valor if isinstance(valor, list) else []:
+            if origem != "*" and not _eh_origem_valida(origem):
+                raise ValueError(
+                    f"Origem de CORS inválida: {origem!r}. Use http(s)://host[:porta], "
+                    "sem caminho nem barra final."
+                )
         return valor
 
     @property
@@ -137,7 +158,7 @@ class Configuracoes(BaseSettings):
         return problemas
 
     def _origens_locais(self) -> list[str]:
-        locais = [o for o in self.cors_origens if "localhost" in o or "127.0.0.1" in o]
+        locais = [o for o in self.cors_origens if urlparse(o).hostname in HOSTS_LOCAIS]
         return [f"CORS_ORIGENS não pode apontar para {', '.join(locais)}"] if locais else []
 
 

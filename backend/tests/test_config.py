@@ -52,6 +52,20 @@ def test_cors_nunca_aceita_curinga() -> None:
         _config(cors_origens="*")
 
 
+@pytest.mark.parametrize(
+    "origem", ['["https://app.com"]', "https://app.com/", "app.com", "ftp://app.com"]
+)
+def test_cors_recusa_origem_mal_formada(origem: str) -> None:
+    with pytest.raises(ValidationError, match="Origem de CORS inválida"):
+        _config(cors_origens=origem)
+
+
+def test_producao_aceita_subdominio_que_contem_localhost() -> None:
+    config = _config(**{**PRODUCAO_VALIDA, "cors_origens": "https://localhost.empresa.com"})
+
+    assert config.cors_origens == ["https://localhost.empresa.com"]
+
+
 def test_senha_com_caracteres_especiais_e_escapada_na_url() -> None:
     url = _config(postgres_senha="p@ss/w:rd#1", postgres_host="db").url_banco
 
