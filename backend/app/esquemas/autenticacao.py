@@ -47,13 +47,16 @@ def normalizar_email(email: str) -> str:
 
 Email = Annotated[EmailStr, AfterValidator(normalizar_email)]
 
+# A política (tamanho, senhas comuns...) é aplicada no serviço, que conhece o e-mail.
+SenhaTexto = Annotated[str, Field(min_length=1, max_length=256), AfterValidator(_sem_controle)]
+
 
 class RegistroEntrada(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     nome: Nome
     email: Email
-    senha: Annotated[str, Field(min_length=1, max_length=256), AfterValidator(_sem_controle)]
+    senha: SenhaTexto
 
 
 class UsuarioSaida(BaseModel):
