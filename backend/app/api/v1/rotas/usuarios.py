@@ -68,9 +68,10 @@ def obter_usuario(usuario_id: uuid.UUID, _admin: AdminDep, sessao: SessaoDep) ->
     responses={**RESPOSTAS_ADMIN, 409: {"description": "E-mail em uso ou último admin"}},
 )
 def atualizar_usuario(
-    usuario_id: uuid.UUID, dados: UsuarioAtualizacaoAdmin, _admin: AdminDep, sessao: SessaoDep
+    usuario_id: uuid.UUID, dados: UsuarioAtualizacaoAdmin, admin_atual: AdminDep, sessao: SessaoDep
 ) -> UsuarioSaida:
-    return UsuarioSaida.model_validate(ServicoUsuarios(sessao).atualizar(usuario_id, dados))
+    usuario = ServicoUsuarios(sessao).atualizar(usuario_id, dados, admin_atual)
+    return UsuarioSaida.model_validate(usuario)
 
 
 @admin.delete(
@@ -89,7 +90,14 @@ def meu_perfil(usuario: UsuarioDep) -> UsuarioSaida:
     return UsuarioSaida.model_validate(usuario)
 
 
-@perfil.patch("", response_model=UsuarioSaida, responses={409: {"description": "E-mail em uso"}})
+@perfil.patch(
+    "",
+    response_model=UsuarioSaida,
+    responses={
+        401: {"description": "Senha atual incorreta (exigida para trocar o e-mail)"},
+        409: {"description": "E-mail em uso"},
+    },
+)
 def atualizar_meu_perfil(
     dados: PerfilAtualizacao, usuario: UsuarioDep, sessao: SessaoDep
 ) -> UsuarioSaida:

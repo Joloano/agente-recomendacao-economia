@@ -37,16 +37,28 @@ def _validar_senha(senha: str, email: str) -> None:
         raise SenhaRecusada(str(erro)) from erro
 
 
+def _escapar_like(texto: str) -> str:
+    """Busca literal: "%" e "_" digitados pelo admin não viram curingas."""
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class ServicoUsuarios:
     def __init__(self, sessao: Session) -> None:
         self._sessao = sessao
 
     # ---------- base ----------
-    def criar(self, nome: str, email: str, senha: str, papel: Papel) -> Usuario:
+    def criar(
+        self,
+        nome: str,
+        email: str,
+        senha: str,
+        papel: Papel,
+        mensagem_conflito: str = MENSAGEM_EMAIL_EM_USO,
+    ) -> Usuario:
         _validar_senha(senha, email)
         usuario = Usuario(nome=nome, email=email, senha_hash=gerar_hash(senha), papel=papel)
         self._sessao.add(usuario)
-        self._confirmar()
+        self._confirmar(mensagem_conflito)
         self._sessao.refresh(usuario)
         return usuario
 
@@ -56,7 +68,7 @@ class ServicoUsuarios:
             raise NaoEncontrado("Usuário não encontrado.")
         return usuario
 
-    def _confirmar(self) -> None:
+    def _confirmar(self, mensagem_conflito: str = MENSAGEM_EMAIL_EM_USO) -> None:
         try:
             self._sessao.commit()
         except IntegrityError as erro:
@@ -64,7 +76,7 @@ class ServicoUsuarios:
             # Só a unicidade do e-mail vira 409; outra violação é bug e deve aparecer.
             if _constraint_violada(erro) != "uq_usuario_email":
                 raise
-            raise Conflito(MENSAGEM_EMAIL_EM_USO) from erro
+            raise Conflito(mensagem_conflito) from erro
 
     # ---------- admin ----------
     def listar(
@@ -76,8 +88,13 @@ class ServicoUsuarios:
     ) -> tuple[Sequence[Usuario], int]:
         filtros = []
         if busca:
-            termo = f"%{busca.strip().lower()}%"
-            filtros.append(or_(func.lower(Usuario.nome).like(termo), Usuario.email.like(termo)))
+            termo = f"%{_escapar_like(busca.strip().lower())}%"
+            filtros.append(
+                or_(
+                    func.lower(Usuario.nome).like(termo, escape="\\"),
+                    Usuario.email.like(termo, escape="\\"),
+                )
+            )
         if papel is not None:
             filtros.append(Usuario.papel == papel)
         if ativo is not None:
@@ -92,45 +109,57 @@ class ServicoUsuarios:
         ).all()
         return itens, total
 
-    def atualizar(self, usuario_id: uuid.UUID, dados: UsuarioAtualizacaoAdmin) -> Usuario:
-        usuario = self.obter(usuario_id)
-        perde_admin = (
-            usuario.papel is Papel.ADMIN
-            and usuario.ativo
-            and (dados.papel is Papel.CLIENTE or dados.ativo is False)
-        )
+    def atualizar(
+        self, usuario_id: uuid.UUID, dados: UsuarioAtualizacaoAdmin, solicitante: Usuario
+    ) -> Usuario:
+        perde_admin = dados.papel is Papel.CLIENTE or dados.ativo is False
+        if perde_admin and usuario_id == solicitante.id:
+            raise Conflito("Você não pode rebaixar nem desativar a própria conta.")
         if perde_admin:
-            self._garantir_outro_admin(usuario)
+            self._travar_admins_e_garantir_outro(usuario_id)
+        usuario = self.obter(usuario_id)
         for campo, valor in dados.model_dump(exclude_unset=True).items():
-            if valor is not None:
-                setattr(usuario, campo, valor)
+            setattr(usuario, campo, valor)
         self._confirmar()
         return usuario
 
     def excluir(self, usuario_id: uuid.UUID, solicitante: Usuario) -> None:
-        usuario = self.obter(usuario_id)
-        if usuario.id == solicitante.id:
-            raise Conflito("Use a exclusão da própria conta para apagar a sua conta.")
-        if usuario.papel is Papel.ADMIN and usuario.ativo:
-            self._garantir_outro_admin(usuario)
-        self._sessao.delete(usuario)
+        if usuario_id == solicitante.id:
+            raise Conflito("Você não pode excluir a própria conta por esta área.")
+        self._travar_admins_e_garantir_outro(usuario_id)
+        self._sessao.delete(self.obter(usuario_id))
         self._sessao.commit()
 
-    def _garantir_outro_admin(self, usuario: Usuario) -> None:
-        """Trava as linhas dos admins ativos: requisições simultâneas não esvaziam o sistema."""
-        outros = self._sessao.scalars(
+    def _travar_admins_e_garantir_outro(self, alvo_id: uuid.UUID) -> None:
+        """Trava todos os admins ativos (inclusive o alvo), sempre na mesma ordem.
+
+        A ordem fixa evita deadlock entre requisições simultâneas: a segunda espera a
+        primeira terminar e então reavalia com os dados já atualizados. Se o alvo não é
+        admin ativo, a regra não se aplica.
+        """
+        admins = self._sessao.scalars(
             select(Usuario.id)
-            .where(Usuario.papel == Papel.ADMIN, Usuario.ativo, Usuario.id != usuario.id)
+            .where(Usuario.papel == Papel.ADMIN, Usuario.ativo)
+            .order_by(Usuario.id)
             .with_for_update()
         ).all()
-        if not outros:
+        if alvo_id in admins and len(admins) < 2:  # noqa: PLR2004
             raise Conflito(MENSAGEM_ULTIMO_ADMIN)
+        # Recarrega o alvo: o que outra transação gravou antes do lock passa a valer aqui.
+        if (alvo := self._sessao.get(Usuario, alvo_id)) is not None:
+            self._sessao.refresh(alvo)
 
     # ---------- próprio perfil ----------
     def atualizar_perfil(self, usuario: Usuario, dados: PerfilAtualizacao) -> Usuario:
-        for campo, valor in dados.model_dump(exclude_unset=True).items():
-            if valor is not None:
-                setattr(usuario, campo, valor)
+        mudancas = dados.model_dump(exclude_unset=True, exclude={"senha_atual"})
+        troca_email = "email" in mudancas and mudancas["email"] != usuario.email
+        # Trocar o e-mail exige a senha: um token roubado não basta para tomar a conta.
+        if troca_email and not (
+            dados.senha_atual and verificar_senha(dados.senha_atual, usuario.senha_hash)
+        ):
+            raise SenhaAtualIncorreta("Confirme a senha atual para trocar o e-mail.")
+        for campo, valor in mudancas.items():
+            setattr(usuario, campo, valor)
         self._confirmar()
         return usuario
 

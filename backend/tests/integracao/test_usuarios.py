@@ -1,18 +1,24 @@
 """Gestão de usuários pelo admin e o próprio perfil, contra o PostgreSQL real."""
 
+import threading
+import uuid
 from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, delete, select
 from sqlalchemy.orm import Session
 
 from app.core.banco import obter_sessao
 from app.core.config import Ambiente, Configuracoes, obter_configuracoes
+from app.core.erros import Conflito
 from app.core.seguranca import gerar_hash
+from app.esquemas.usuarios import UsuarioAtualizacaoAdmin
 from app.fabrica import criar_app
 from app.modelos import Papel, Usuario
+from app.servicos.usuarios import ServicoUsuarios
 
 CONFIG = Configuracoes(_env_file=None, ambiente=Ambiente.TESTE, jwt_segredo="t" * 48)
 SENHA = "uma senha bem longa"
@@ -179,15 +185,21 @@ def test_excluir_usuario(cliente: TestClient, sessao: Session, h_admin: dict[str
     assert cliente.get(f"/api/v1/admin/usuarios/{ana.id}", headers=h_admin).status_code == 404
 
 
-# ---------- último admin ----------
+# ---------- último admin e a própria conta ----------
 @pytest.mark.parametrize("mudanca", [{"papel": "cliente"}, {"ativo": False}])
-def test_ultimo_admin_nao_pode_ser_rebaixado_nem_desativado(
+def test_admin_nao_rebaixa_nem_desativa_a_si_mesmo(
     cliente: TestClient, admin: Usuario, h_admin: dict[str, str], mudanca: dict[str, Any]
 ) -> None:
     resposta = cliente.patch(f"/api/v1/admin/usuarios/{admin.id}", json=mudanca, headers=h_admin)
 
     assert resposta.status_code == 409
-    assert "pelo menos um administrador" in resposta.json()["detail"]
+    assert "própria conta" in resposta.json()["detail"]
+
+
+def test_admin_nao_exclui_a_propria_conta_pela_rota_de_admin(
+    cliente: TestClient, admin: Usuario, h_admin: dict[str, str]
+) -> None:
+    assert cliente.delete(f"/api/v1/admin/usuarios/{admin.id}", headers=h_admin).status_code == 409
 
 
 def test_com_outro_admin_o_rebaixamento_e_permitido(
@@ -202,22 +214,95 @@ def test_com_outro_admin_o_rebaixamento_e_permitido(
     assert resposta.status_code == 200
 
 
-def test_admin_desativado_nao_conta_como_outro_admin(
-    cliente: TestClient, sessao: Session, admin: Usuario, h_admin: dict[str, str]
+@pytest.mark.parametrize("operacao", ["rebaixar", "desativar", "excluir"])
+def test_ultimo_admin_ativo_e_protegido_no_servico(sessao: Session, operacao: str) -> None:
+    unico = _criar(sessao, "unico@exemplo.com", Papel.ADMIN)
+    _criar(sessao, "inativo@exemplo.com", Papel.ADMIN, ativo=False)  # inativo não conta
+    solicitante = _criar(sessao, "outro@exemplo.com")
+    servico = ServicoUsuarios(sessao)
+
+    with pytest.raises(Conflito, match="pelo menos um administrador"):
+        if operacao == "excluir":
+            servico.excluir(unico.id, solicitante)
+        else:
+            mudanca = {"papel": "cliente"} if operacao == "rebaixar" else {"ativo": False}
+            servico.atualizar(unico.id, UsuarioAtualizacaoAdmin(**mudanca), solicitante)
+
+
+def test_dois_admins_se_rebaixando_ao_mesmo_tempo_deixa_um_admin(engine: Engine) -> None:
+    """Concorrência real: duas conexões, cada admin tentando rebaixar o outro."""
+    with Session(engine) as preparo:
+        a = Usuario(nome="A", email="a-conc@exemplo.com", senha_hash="h", papel=Papel.ADMIN)
+        b = Usuario(nome="B", email="b-conc@exemplo.com", senha_hash="h", papel=Papel.ADMIN)
+        preparo.add_all([a, b])
+        preparo.commit()
+        ids = (a.id, b.id)
+    barreira = threading.Barrier(2)
+    resultados: list[str] = []
+
+    def rebaixar(alvo: uuid.UUID, solicitante_id: uuid.UUID) -> None:
+        with Session(engine) as sessao:
+            solicitante = sessao.get_one(Usuario, solicitante_id)
+            barreira.wait()
+            try:
+                ServicoUsuarios(sessao).atualizar(
+                    alvo, UsuarioAtualizacaoAdmin(papel=Papel.CLIENTE), solicitante
+                )
+                resultados.append("ok")
+            except Conflito:
+                resultados.append("409")
+
+    try:
+        threads = [
+            threading.Thread(target=rebaixar, args=(ids[1], ids[0])),
+            threading.Thread(target=rebaixar, args=(ids[0], ids[1])),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        assert sorted(resultados) == ["409", "ok"]
+        with Session(engine) as conferencia:
+            admins = conferencia.scalars(
+                select(Usuario).where(Usuario.id.in_(ids), Usuario.papel == Papel.ADMIN)
+            ).all()
+            assert len(admins) == 1
+    finally:
+        with Session(engine) as limpeza:
+            limpeza.execute(delete(Usuario).where(Usuario.id.in_(ids)))
+            limpeza.commit()
+
+
+# ---------- validações de atualização e busca ----------
+@pytest.mark.parametrize("corpo", [{"email": None}, {"nome": None}, {"papel": None}])
+def test_null_explicito_e_recusado(
+    cliente: TestClient, sessao: Session, h_admin: dict[str, str], corpo: dict[str, Any]
 ) -> None:
-    _criar(sessao, "inativo@exemplo.com", Papel.ADMIN, ativo=False)
+    ana = _criar(sessao, "ana@exemplo.com")
 
-    resposta = cliente.patch(
-        f"/api/v1/admin/usuarios/{admin.id}", json={"papel": "cliente"}, headers=h_admin
-    )
+    resposta = cliente.patch(f"/api/v1/admin/usuarios/{ana.id}", json=corpo, headers=h_admin)
 
-    assert resposta.status_code == 409
+    assert resposta.status_code == 422
 
 
-def test_admin_nao_exclui_a_propria_conta_pela_rota_de_admin(
-    cliente: TestClient, admin: Usuario, h_admin: dict[str, str]
+def test_busca_trata_curingas_como_texto(
+    cliente: TestClient, sessao: Session, h_admin: dict[str, str]
 ) -> None:
-    assert cliente.delete(f"/api/v1/admin/usuarios/{admin.id}", headers=h_admin).status_code == 409
+    _criar(sessao, "ana@exemplo.com", nome="Ana")
+    _criar(sessao, "com_sublinhado@exemplo.com", nome="Bia")
+
+    sublinhado = cliente.get("/api/v1/admin/usuarios?busca=_", headers=h_admin).json()
+    porcento = cliente.get("/api/v1/admin/usuarios?busca=%25", headers=h_admin).json()
+
+    assert [u["email"] for u in sublinhado["itens"]] == ["com_sublinhado@exemplo.com"]
+    assert porcento["total"] == 0
+
+
+def test_pagina_informa_total_de_paginas(cliente: TestClient, h_admin: dict[str, str]) -> None:
+    corpo = cliente.get("/api/v1/admin/usuarios?tamanho=1", headers=h_admin).json()
+
+    assert corpo["paginas"] == corpo["total"]
 
 
 # ---------- próprio perfil ----------
@@ -230,6 +315,31 @@ def test_cliente_edita_o_proprio_perfil(cliente: TestClient, sessao: Session) ->
     assert resposta.status_code == 200
     assert resposta.json()["nome"] == "Ana Maria"
     assert cliente.get("/api/v1/usuarios/eu", headers=h).json()["nome"] == "Ana Maria"
+
+
+def test_perfil_vazio_e_recusado(cliente: TestClient, sessao: Session) -> None:
+    _criar(sessao, "ana@exemplo.com")
+    h = _auth(cliente, "ana@exemplo.com")
+
+    assert cliente.patch("/api/v1/usuarios/eu", json={}, headers=h).status_code == 422
+
+
+def test_trocar_email_exige_a_senha_atual(cliente: TestClient, sessao: Session) -> None:
+    _criar(sessao, "ana@exemplo.com")
+    _criar(sessao, "bia@exemplo.com")
+    h = _auth(cliente, "ana@exemplo.com")
+    url = "/api/v1/usuarios/eu"
+
+    sem_senha = cliente.patch(url, json={"email": "nova@exemplo.com"}, headers=h)
+    senha_errada = cliente.patch(
+        url, json={"email": "nova@exemplo.com", "senha_atual": "errada errada"}, headers=h
+    )
+    em_uso = cliente.patch(url, json={"email": "bia@exemplo.com", "senha_atual": SENHA}, headers=h)
+    certo = cliente.patch(url, json={"email": "nova@exemplo.com", "senha_atual": SENHA}, headers=h)
+
+    assert (sem_senha.status_code, senha_errada.status_code, em_uso.status_code) == (401, 401, 409)
+    assert certo.status_code == 200
+    assert certo.json()["email"] == "nova@exemplo.com"
 
 
 def test_cliente_nao_se_promove_pelo_perfil(cliente: TestClient, sessao: Session) -> None:

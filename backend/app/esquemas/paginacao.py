@@ -3,7 +3,7 @@
 from typing import Annotated, Generic, TypeVar
 
 from fastapi import Query
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 T = TypeVar("T")
 
@@ -35,6 +35,8 @@ class Pagina(BaseModel, Generic[T]):
     pagina: int
     tamanho: int
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def paginas(self) -> int:
+        """Total de páginas (aparece no JSON e no Swagger)."""
         return max(1, -(-self.total // self.tamanho))

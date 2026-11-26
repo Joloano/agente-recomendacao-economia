@@ -25,7 +25,11 @@ class ServicoAutenticacao:
     def registrar(self, dados: RegistroEntrada) -> Usuario:
         # O cadastro público nunca cria admin.
         return ServicoUsuarios(self._sessao).criar(
-            dados.nome, dados.email, dados.senha, Papel.CLIENTE
+            dados.nome,
+            dados.email,
+            dados.senha,
+            Papel.CLIENTE,
+            mensagem_conflito="Este e-mail já está cadastrado. Quer entrar?",
         )
 
     def autenticar(self, email: str, senha: str) -> Usuario:

@@ -1,11 +1,27 @@
 """Esquemas da gestão de usuários (admin) e do próprio perfil."""
 
-from typing import Annotated
+from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.esquemas.autenticacao import Email, Nome, SenhaTexto
 from app.modelos.enums import Papel
+
+
+class _AtualizacaoParcial(BaseModel):
+    """Só os campos enviados mudam; enviar `null` ou nenhum campo é erro (não um no-op)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _validar_campos_enviados(self) -> Self:
+        enviados = self.model_fields_set - {"senha_atual"}
+        if not enviados:
+            raise ValueError("Envie ao menos um campo para atualizar.")
+        nulos = sorted(campo for campo in enviados if getattr(self, campo) is None)
+        if nulos:
+            raise ValueError(f"Estes campos não podem ser nulos: {', '.join(nulos)}.")
+        return self
 
 
 class UsuarioCriacao(BaseModel):
@@ -19,30 +35,22 @@ class UsuarioCriacao(BaseModel):
     papel: Papel = Papel.CLIENTE
 
 
-class UsuarioAtualizacaoAdmin(BaseModel):
-    """Atualização parcial pelo admin: só os campos enviados mudam."""
-
-    model_config = ConfigDict(extra="forbid")
-
+class UsuarioAtualizacaoAdmin(_AtualizacaoParcial):
     nome: Nome | None = None
     email: Email | None = None
     papel: Papel | None = None
     ativo: bool | None = None
 
-    @model_validator(mode="after")
-    def _algum_campo(self) -> "UsuarioAtualizacaoAdmin":
-        if not self.model_fields_set:
-            raise ValueError("Envie ao menos um campo para atualizar.")
-        return self
 
+class PerfilAtualizacao(_AtualizacaoParcial):
+    """O próprio usuário só muda nome e e-mail (papel e situação, nunca).
 
-class PerfilAtualizacao(BaseModel):
-    """O próprio usuário só muda nome e e-mail (papel e ativo, nunca)."""
-
-    model_config = ConfigDict(extra="forbid")
+    Trocar o e-mail exige `senha_atual`: um token roubado não basta para tomar a conta.
+    """
 
     nome: Nome | None = None
     email: Email | None = None
+    senha_atual: Annotated[str | None, Field(max_length=256)] = None
 
 
 class TrocaSenha(BaseModel):
