@@ -14,6 +14,7 @@ Funcionamento ("reserva antes do trabalho caro", falha fechada):
 import hashlib
 import hmac
 import ipaddress
+import math
 import random
 import uuid
 from dataclasses import dataclass
@@ -155,7 +156,7 @@ class LimitadorTentativas:
             .offset(contagem - regra.limite - 1)
             .limit(1)
         )
-        return int(segundos or 0) + 1
+        return math.ceil(segundos or 0)
 
     def liberar(self, reserva: list[uuid.UUID], email: str, ip: str | None = None) -> None:
         """Login certo: a tentativa não conta e as falhas desse e-mail (e desse e-mail+IP) somem.
