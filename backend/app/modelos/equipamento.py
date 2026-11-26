@@ -1,8 +1,16 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.agente.dominio import Essencialidade, Recurso
@@ -16,7 +24,11 @@ _ESCALAS = ("impacto_conforto_1a5", "flexibilidade_1a5", "esforco_1a5")
 
 class Categoria(ComId, ComDatas, Base):
     __tablename__ = "categoria"
-    __table_args__ = (UniqueConstraint("nome", "recurso", name="uq_categoria_nome_recurso"),)
+    __table_args__ = (
+        UniqueConstraint("nome", "recurso", name="uq_categoria_nome_recurso"),
+        # Alvo da FK composta do equipamento: garante que o recurso dos dois coincide.
+        UniqueConstraint("id", "recurso", name="uq_categoria_id_recurso"),
+    )
 
     nome: Mapped[str] = mapped_column(String(60))
     recurso: Mapped[Recurso] = mapped_column(tipo_enum(Recurso, "recurso"))
@@ -24,6 +36,9 @@ class Categoria(ComId, ComDatas, Base):
 
 
 class Equipamento(ComId, ComDatas, Base):
+    """Equipamentos com recomendações não são apagados: recebem `removido_em` (soft delete),
+    para o histórico de economia continuar íntegro."""
+
     __tablename__ = "equipamento"
     __table_args__ = (
         *(CheckConstraint(f"{c} BETWEEN 1 AND 5", name=f"{c}_entre_1_e_5") for c in _ESCALAS),
@@ -38,14 +53,19 @@ class Equipamento(ComId, ComDatas, Base):
             "(recurso = 'agua' AND vazao_litros_min IS NOT NULL AND potencia_kw IS NULL)",
             name="medida_conforme_recurso",
         ),
+        ForeignKeyConstraint(
+            ["categoria_id", "recurso"],
+            ["categoria.id", "categoria.recurso"],
+            name="fk_equipamento_categoria_mesmo_recurso",
+        ),
+        # Alvo da FK composta da recomendação: equipamento e simulação da mesma residência.
+        UniqueConstraint("id", "residencia_id", name="uq_equipamento_id_residencia"),
     )
 
     residencia_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("residencia.id", ondelete="CASCADE"), index=True
     )
-    categoria_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("categoria.id", ondelete="RESTRICT"), index=True
-    )
+    categoria_id: Mapped[uuid.UUID] = mapped_column(index=True)
     nome: Mapped[str] = mapped_column(String(120))
     recurso: Mapped[Recurso] = mapped_column(tipo_enum(Recurso, "recurso"))
     potencia_kw: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
@@ -60,6 +80,9 @@ class Equipamento(ComId, ComDatas, Base):
     flexibilidade_1a5: Mapped[int]
     esforco_1a5: Mapped[int]
     economia_potencial: Mapped[Quantidade]
+    removido_em: Mapped[datetime | None]
 
     residencia: Mapped["Residencia"] = relationship(back_populates="equipamentos")
-    categoria: Mapped[Categoria] = relationship()
+    categoria: Mapped[Categoria] = relationship(
+        foreign_keys=[categoria_id], primaryjoin="Equipamento.categoria_id == Categoria.id"
+    )

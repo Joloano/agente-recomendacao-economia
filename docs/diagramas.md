@@ -2,61 +2,63 @@
 
 ## Diagrama ER (PostgreSQL)
 
+Implementado em `backend/app/modelos/` e na migração inicial. Todas as tabelas (exceto
+`feedback`, que é imutável) têm `criado_em` e `atualizado_em` com fuso horário.
+
 ```mermaid
 erDiagram
-    USUARIO ||--o{ RESIDENCIA : possui
-    RESIDENCIA ||--|| PREFERENCIA : define
+    USUARIO ||--o{ RESIDENCIA : "possui (CASCADE)"
+    RESIDENCIA ||--o| PREFERENCIA : define
     RESIDENCIA ||--o{ EQUIPAMENTO : contem
-    CATEGORIA ||--o{ EQUIPAMENTO : classifica
+    CATEGORIA ||--o{ EQUIPAMENTO : "classifica (mesmo recurso)"
     RESIDENCIA ||--o{ SIMULACAO : executa
     SIMULACAO ||--o{ RECOMENDACAO : gera
-    EQUIPAMENTO ||--o{ RECOMENDACAO : origina
+    EQUIPAMENTO ||--o{ RECOMENDACAO : "origina (sem exclusão física)"
     RECOMENDACAO ||--o| FEEDBACK : recebe
-    USUARIO ||--o{ FEEDBACK : registra
+    USUARIO |o--o{ FEEDBACK : "registra (SET NULL)"
 
     USUARIO {
         uuid id PK
         string nome
-        string email UK
+        string email UK "sempre minúsculo"
         string senha_hash
-        enum papel "admin | cliente"
-        boolean ativo
-        timestamp criado_em
+        enum papel "admin | cliente (padrão)"
+        boolean ativo "padrão true"
     }
     RESIDENCIA {
         uuid id PK
         uuid usuario_id FK
         string nome
-        int numero_moradores
+        int numero_moradores "> 0"
         decimal meta_energia_kwh_dia
         decimal meta_agua_litros_dia
         decimal tarifa_energia_rs_kwh
         decimal tarifa_agua_rs_m3
-        string perfil_morador
+        string perfil_morador "opcional"
     }
     PREFERENCIA {
         uuid id PK
-        uuid residencia_id FK
-        decimal peso_economia
-        decimal peso_conforto
-        decimal peso_flexibilidade
-        decimal peso_baixo_esforco
+        uuid residencia_id FK,UK
+        decimal peso_economia "0 a 1"
+        decimal peso_conforto "0 a 1"
+        decimal peso_flexibilidade "0 a 1"
+        decimal peso_baixo_esforco "0 a 1 (soma 1 no domínio)"
     }
     CATEGORIA {
         uuid id PK
-        string nome UK
+        string nome "UK com recurso"
         enum recurso "energia | agua"
         string descricao_acao
     }
     EQUIPAMENTO {
         uuid id PK
         uuid residencia_id FK
-        uuid categoria_id FK
+        uuid categoria_id FK "FK composta com recurso"
         string nome
         enum recurso "energia | agua"
-        decimal potencia_kw "nulo se agua"
-        decimal vazao_litros_min "nulo se energia"
-        decimal horas_uso_diario
+        decimal potencia_kw "obrigatória se energia"
+        decimal vazao_litros_min "obrigatória se agua"
+        decimal horas_uso_diario "0 a 24"
         decimal consumo_diario_estimado
         boolean reducao_uso
         enum essencialidade "essencial | importante | nao_essencial"
@@ -64,40 +66,53 @@ erDiagram
         int flexibilidade_1a5
         int esforco_1a5
         decimal economia_potencial
+        timestamp removido_em "soft delete"
     }
     SIMULACAO {
         uuid id PK
-        uuid residencia_id FK
+        uuid residencia_id FK "uma ativa por residência"
         enum recurso "energia | agua | ambos"
-        decimal consumo_inicial_energia
+        decimal consumo_inicial_energia "conforme recurso"
         decimal consumo_estimado_energia
-        decimal consumo_inicial_agua
+        decimal consumo_inicial_agua "conforme recurso"
         decimal consumo_estimado_agua
         enum status "ativa | encerrada"
-        timestamp criada_em
+        timestamp encerrada_em "só se encerrada"
     }
     RECOMENDACAO {
         uuid id PK
-        uuid simulacao_id FK
+        uuid residencia_id "amarra simulação e equipamento"
+        uuid simulacao_id FK "UK com equipamento e com posição"
         uuid equipamento_id FK
         decimal nota_economia
         decimal nota_conforto
         decimal nota_flexibilidade
         decimal nota_baixo_esforco
         decimal utilidade
-        int posicao
+        int posicao "> 0"
         enum status "pendente | aceita | rejeitada"
     }
     FEEDBACK {
         uuid id PK
-        uuid recomendacao_id FK
-        uuid usuario_id FK
+        uuid recomendacao_id FK,UK
+        uuid usuario_id FK "anulável"
         enum resposta "aceitar | rejeitar"
-        decimal consumo_antes
-        decimal consumo_depois
+        decimal consumo_antes ">= 0"
+        decimal consumo_depois ">= 0"
         timestamp registrado_em
     }
 ```
+
+**Integridade garantida pelo banco**
+
+- `equipamento (categoria_id, recurso) → categoria (id, recurso)`: a categoria é do mesmo recurso.
+- `recomendacao (simulacao_id, residencia_id)` e `(equipamento_id, residencia_id)`: a simulação e
+  o equipamento pertencem à mesma residência.
+- Equipamento com recomendações não pode ser apagado; use `removido_em`.
+- Excluir o usuário dono apaga as residências e todo o histórico delas (direito de eliminação). Se a
+  conta de quem respondeu um feedback for excluída, o feedback fica com `usuario_id` nulo.
+- A posição é única por simulação; a constraint é adiável, para a reordenação trocar posições na
+  mesma transação.
 
 ## Diagrama de classes (backend Python)
 

@@ -1,8 +1,8 @@
 """cria tabelas iniciais
 
-Revision ID: c4a4dc334b65
+Revision ID: 7f3e2a5c82b4
 Revises:
-Create Date: 2026-11-25 22:01:21.507230
+Create Date: 2026-11-25 22:14:14.128791
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "c4a4dc334b65"
+revision: str = "7f3e2a5c82b4"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -48,6 +48,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_categoria")),
+        sa.UniqueConstraint("id", "recurso", name="uq_categoria_id_recurso"),
         sa.UniqueConstraint("nome", "recurso", name="uq_categoria_nome_recurso"),
     )
     op.create_table(
@@ -66,9 +67,10 @@ def upgrade() -> None:
                 create_constraint=True,
                 length=20,
             ),
+            server_default="cliente",
             nullable=False,
         ),
-        sa.Column("ativo", sa.Boolean(), nullable=False),
+        sa.Column("ativo", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column(
             "criado_em", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
         ),
@@ -78,6 +80,7 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.CheckConstraint("email = lower(email)", name=op.f("ck_usuario_email_minusculo")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_usuario")),
         sa.UniqueConstraint("email", name=op.f("uq_usuario_email")),
     )
@@ -159,6 +162,7 @@ def upgrade() -> None:
         sa.Column("flexibilidade_1a5", sa.Integer(), nullable=False),
         sa.Column("esforco_1a5", sa.Integer(), nullable=False),
         sa.Column("economia_potencial", sa.Numeric(precision=14, scale=4), nullable=False),
+        sa.Column("removido_em", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "criado_em", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
         ),
@@ -191,10 +195,9 @@ def upgrade() -> None:
             name=op.f("ck_equipamento_impacto_conforto_1a5_entre_1_e_5"),
         ),
         sa.ForeignKeyConstraint(
-            ["categoria_id"],
-            ["categoria.id"],
-            name=op.f("fk_equipamento_categoria_id_categoria"),
-            ondelete="RESTRICT",
+            ["categoria_id", "recurso"],
+            ["categoria.id", "categoria.recurso"],
+            name="fk_equipamento_categoria_mesmo_recurso",
         ),
         sa.ForeignKeyConstraint(
             ["residencia_id"],
@@ -203,6 +206,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_equipamento")),
+        sa.UniqueConstraint("id", "residencia_id", name="uq_equipamento_id_residencia"),
     )
     op.create_index(
         op.f("ix_equipamento_categoria_id"), "equipamento", ["categoria_id"], unique=False
@@ -267,6 +271,7 @@ def upgrade() -> None:
                 create_constraint=True,
                 length=20,
             ),
+            server_default="ativa",
             nullable=False,
         ),
         sa.Column("consumo_inicial_energia", sa.Numeric(precision=14, scale=4), nullable=True),
@@ -283,6 +288,18 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "(recurso = 'energia' AND consumo_inicial_energia IS NOT NULL AND consumo_estimado_energia IS NOT NULL AND consumo_inicial_agua IS NULL AND consumo_estimado_agua IS NULL) OR (recurso = 'agua' AND consumo_inicial_agua IS NOT NULL AND consumo_estimado_agua IS NOT NULL AND consumo_inicial_energia IS NULL AND consumo_estimado_energia IS NULL) OR (recurso = 'ambos' AND consumo_inicial_energia IS NOT NULL AND consumo_estimado_energia IS NOT NULL AND consumo_inicial_agua IS NOT NULL AND consumo_estimado_agua IS NOT NULL)",
+            name=op.f("ck_simulacao_consumo_conforme_recurso"),
+        ),
+        sa.CheckConstraint(
+            "(status = 'encerrada') = (encerrada_em IS NOT NULL)",
+            name=op.f("ck_simulacao_encerramento_coerente"),
+        ),
+        sa.CheckConstraint(
+            "COALESCE(consumo_inicial_energia, 0) >= 0 AND COALESCE(consumo_estimado_energia, 0) >= 0 AND COALESCE(consumo_inicial_agua, 0) >= 0 AND COALESCE(consumo_estimado_agua, 0) >= 0",
+            name=op.f("ck_simulacao_consumo_nao_negativo"),
+        ),
         sa.ForeignKeyConstraint(
             ["residencia_id"],
             ["residencia.id"],
@@ -290,13 +307,25 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_simulacao")),
+        sa.UniqueConstraint("id", "residencia_id", name="uq_simulacao_id_residencia"),
     )
     op.create_index(
-        op.f("ix_simulacao_residencia_id"), "simulacao", ["residencia_id"], unique=False
+        "ix_simulacao_residencia_criado_em",
+        "simulacao",
+        ["residencia_id", "criado_em"],
+        unique=False,
+    )
+    op.create_index(
+        "uq_simulacao_uma_ativa_por_residencia",
+        "simulacao",
+        ["residencia_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'ativa'"),
     )
     op.create_table(
         "recomendacao",
         sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("residencia_id", sa.Uuid(), nullable=False),
         sa.Column("simulacao_id", sa.Uuid(), nullable=False),
         sa.Column("equipamento_id", sa.Uuid(), nullable=False),
         sa.Column("nota_economia", sa.Numeric(precision=7, scale=4), nullable=False),
@@ -316,6 +345,7 @@ def upgrade() -> None:
                 create_constraint=True,
                 length=20,
             ),
+            server_default="pendente",
             nullable=False,
         ),
         sa.Column(
@@ -329,25 +359,31 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("posicao > 0", name=op.f("ck_recomendacao_posicao_positiva")),
         sa.ForeignKeyConstraint(
-            ["equipamento_id"],
-            ["equipamento.id"],
-            name=op.f("fk_recomendacao_equipamento_id_equipamento"),
-            ondelete="CASCADE",
+            ["equipamento_id", "residencia_id"],
+            ["equipamento.id", "equipamento.residencia_id"],
+            name="fk_recomendacao_equipamento_mesma_residencia",
         ),
         sa.ForeignKeyConstraint(
-            ["simulacao_id"],
-            ["simulacao.id"],
-            name=op.f("fk_recomendacao_simulacao_id_simulacao"),
+            ["simulacao_id", "residencia_id"],
+            ["simulacao.id", "simulacao.residencia_id"],
+            name="fk_recomendacao_simulacao_mesma_residencia",
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_recomendacao")),
         sa.UniqueConstraint("simulacao_id", "equipamento_id", name="uq_recomendacao_por_simulacao"),
+        sa.UniqueConstraint(
+            "simulacao_id",
+            "posicao",
+            deferrable=True,
+            initially="DEFERRED",
+            name="uq_recomendacao_posicao",
+        ),
     )
     op.create_index(
         op.f("ix_recomendacao_equipamento_id"), "recomendacao", ["equipamento_id"], unique=False
     )
     op.create_index(
-        op.f("ix_recomendacao_simulacao_id"), "recomendacao", ["simulacao_id"], unique=False
+        op.f("ix_recomendacao_residencia_id"), "recomendacao", ["residencia_id"], unique=False
     )
     op.create_table(
         "feedback",
@@ -374,6 +410,10 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "consumo_antes >= 0 AND consumo_depois >= 0",
+            name=op.f("ck_feedback_consumo_nao_negativo"),
+        ),
         sa.ForeignKeyConstraint(
             ["recomendacao_id"],
             ["recomendacao.id"],
@@ -398,10 +438,15 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_index(op.f("ix_feedback_usuario_id"), table_name="feedback")
     op.drop_table("feedback")
-    op.drop_index(op.f("ix_recomendacao_simulacao_id"), table_name="recomendacao")
+    op.drop_index(op.f("ix_recomendacao_residencia_id"), table_name="recomendacao")
     op.drop_index(op.f("ix_recomendacao_equipamento_id"), table_name="recomendacao")
     op.drop_table("recomendacao")
-    op.drop_index(op.f("ix_simulacao_residencia_id"), table_name="simulacao")
+    op.drop_index(
+        "uq_simulacao_uma_ativa_por_residencia",
+        table_name="simulacao",
+        postgresql_where=sa.text("status = 'ativa'"),
+    )
+    op.drop_index("ix_simulacao_residencia_criado_em", table_name="simulacao")
     op.drop_table("simulacao")
     op.drop_table("preferencia")
     op.drop_index(op.f("ix_equipamento_residencia_id"), table_name="equipamento")

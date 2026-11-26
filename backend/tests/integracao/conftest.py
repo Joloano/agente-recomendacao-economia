@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, make_url
 from sqlalchemy.orm import Session
 
 URL = os.environ.get("TESTE_BANCO_URL")
@@ -24,7 +24,8 @@ pytestmark = pytest.mark.skipif(URL is None, reason="TESTE_BANCO_URL não defini
 def configuracao_alembic(url: str) -> Config:
     config = Config(str(PASTA_BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(PASTA_BACKEND / "alembic"))
-    config.set_main_option("sqlalchemy.url", url)
+    # "%" precisa ser escapado: o arquivo .ini usa interpolação.
+    config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
     return config
 
 
@@ -32,6 +33,9 @@ def configuracao_alembic(url: str) -> Config:
 def url_banco() -> str:
     if URL is None:
         pytest.skip("TESTE_BANCO_URL não definida")
+    # Proteção: os testes apagam e recriam o banco inteiro.
+    if not (make_url(URL).database or "").endswith("_teste"):
+        pytest.exit("TESTE_BANCO_URL precisa apontar para um banco terminado em _teste", 2)
     return URL
 
 

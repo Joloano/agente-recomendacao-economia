@@ -1,8 +1,9 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,10 +19,12 @@ from app.modelos import (
     Residencia,
     Simulacao,
     StatusRecomendacao,
+    StatusSimulacao,
     Usuario,
 )
 
 
+# ---------- construtores ----------
 def _usuario(email: str = "ana@exemplo.com") -> Usuario:
     return Usuario(nome="Ana", email=email, senha_hash="hash")
 
@@ -57,6 +60,29 @@ def _equipamento(residencia: Residencia, categoria: Categoria, **mudancas: Any) 
     return Equipamento(**{**dados, **mudancas})
 
 
+def _simulacao(residencia: Residencia, **mudancas: Any) -> Simulacao:
+    dados: dict[str, Any] = {
+        "residencia": residencia,
+        "recurso": RecursoSimulacao.ENERGIA,
+        "consumo_inicial_energia": Decimal("0.6"),
+        "consumo_estimado_energia": Decimal("0.6"),
+    }
+    return Simulacao(**{**dados, **mudancas})
+
+
+def _recomendacao(simulacao: Simulacao, equipamento: Equipamento, posicao: int = 1) -> Recomendacao:
+    return Recomendacao(
+        simulacao=simulacao,
+        equipamento=equipamento,
+        nota_economia=Decimal(5),
+        nota_conforto=Decimal(4),
+        nota_flexibilidade=Decimal(4),
+        nota_baixo_esforco=Decimal(5),
+        utilidade=Decimal("4.4"),
+        posicao=posicao,
+    )
+
+
 @pytest.fixture
 def categoria(sessao: Session) -> Categoria:
     categoria = Categoria(
@@ -67,48 +93,73 @@ def categoria(sessao: Session) -> Categoria:
     return categoria
 
 
-def test_grafo_completo_e_persistido_com_valores_padrao(
-    sessao: Session, categoria: Categoria
-) -> None:
+@pytest.fixture
+def cenario(sessao: Session, categoria: Categoria) -> Recomendacao:
+    """Usuário → residência → equipamento → simulação → recomendação, já gravados."""
     residencia = _residencia(_usuario())
+    recomendacao = _recomendacao(_simulacao(residencia), _equipamento(residencia, categoria))
+    sessao.add(recomendacao)
+    sessao.flush()
+    return recomendacao
+
+
+def _falha(sessao: Session, constraint: str) -> None:
+    with pytest.raises(IntegrityError, match=constraint):
+        sessao.flush()
+
+
+# ---------- persistência e padrões ----------
+def test_grafo_completo_e_persistido_com_valores_padrao(
+    sessao: Session, cenario: Recomendacao
+) -> None:
+    residencia = cenario.simulacao.residencia
     residencia.preferencia = Preferencia(
         peso_economia=Decimal("0.4"),
         peso_conforto=Decimal("0.3"),
         peso_flexibilidade=Decimal("0.2"),
         peso_baixo_esforco=Decimal("0.1"),
     )
-    equipamento = _equipamento(residencia, categoria)
-    simulacao = Simulacao(residencia=residencia, recurso=RecursoSimulacao.ENERGIA)
-    recomendacao = Recomendacao(
-        simulacao=simulacao,
-        equipamento=equipamento,
-        nota_economia=Decimal(5),
-        nota_conforto=Decimal(4),
-        nota_flexibilidade=Decimal(4),
-        nota_baixo_esforco=Decimal(5),
-        utilidade=Decimal("4.4"),
-        posicao=1,
-    )
-    recomendacao.feedback = Feedback(
+    cenario.feedback = Feedback(
         usuario=residencia.usuario,
         resposta=Resposta.ACEITAR,
         consumo_antes=Decimal("0.6"),
         consumo_depois=Decimal("0.4"),
     )
-    sessao.add(residencia)
     sessao.flush()
     sessao.expire_all()
 
     salvo = sessao.scalars(select(Usuario)).one()
-    assert salvo.papel is Papel.CLIENTE
-    assert salvo.ativo
-    assert salvo.criado_em is not None
+    assert salvo.papel is Papel.CLIENTE and salvo.ativo and salvo.criado_em is not None
     rec = salvo.residencias[0].simulacoes[0].recomendacoes[0]
+    assert rec.residencia_id == salvo.residencias[0].id
     assert rec.status is StatusRecomendacao.PENDENTE
     assert rec.feedback is not None and rec.feedback.resposta is Resposta.ACEITAR
-    assert rec.equipamento.essencialidade is Essencialidade.NAO_ESSENCIAL
 
 
+def test_valores_padrao_tambem_valem_para_sql_puro(sessao: Session) -> None:
+    sessao.execute(
+        text(
+            "INSERT INTO usuario (id, nome, email, senha_hash) "
+            "VALUES (gen_random_uuid(), 'Bia', 'bia@exemplo.com', 'h')"
+        )
+    )
+
+    papel, ativo = sessao.execute(text("SELECT papel, ativo FROM usuario")).one()
+    assert (papel, ativo) == ("cliente", True)
+
+
+def test_atualizado_em_avanca_ao_alterar(sessao: Session, cenario: Recomendacao) -> None:
+    usuario = cenario.simulacao.residencia.usuario
+    antes = usuario.atualizado_em
+
+    usuario.nome = "Ana Maria"
+    sessao.flush()
+    sessao.refresh(usuario)
+
+    assert usuario.atualizado_em > antes
+
+
+# ---------- constraints de equipamento ----------
 @pytest.mark.parametrize(
     ("mudancas", "constraint"),
     [
@@ -117,22 +168,20 @@ def test_grafo_completo_e_persistido_com_valores_padrao(
         ({"horas_uso_diario": Decimal(25)}, "horas_no_maximo_24"),
         ({"economia_potencial": Decimal(-1)}, "valores_nao_negativos"),
         ({"potencia_kw": None}, "medida_conforme_recurso"),
-        ({"recurso": Recurso.AGUA}, "medida_conforme_recurso"),
     ],
 )
 def test_banco_recusa_equipamento_invalido(
     sessao: Session, categoria: Categoria, mudancas: dict[str, Any], constraint: str
 ) -> None:
     sessao.add(_equipamento(_residencia(_usuario()), categoria, **mudancas))
-
-    with pytest.raises(IntegrityError, match=constraint):
-        sessao.flush()
+    _falha(sessao, constraint)
 
 
-def test_equipamento_de_agua_exige_vazao(sessao: Session, categoria: Categoria) -> None:
+def test_equipamento_de_agua_exige_vazao_e_categoria_de_agua(sessao: Session) -> None:
+    banho = Categoria(nome="banho", recurso=Recurso.AGUA, descricao_acao="Banhos curtos.")
     agua = _equipamento(
         _residencia(_usuario()),
-        categoria,
+        banho,
         recurso=Recurso.AGUA,
         potencia_kw=None,
         vazao_litros_min=Decimal(9),
@@ -143,32 +192,136 @@ def test_equipamento_de_agua_exige_vazao(sessao: Session, categoria: Categoria) 
     assert agua.id is not None
 
 
-def test_email_e_unico(sessao: Session) -> None:
+def test_categoria_precisa_ser_do_mesmo_recurso(sessao: Session, categoria: Categoria) -> None:
+    sessao.add(
+        _equipamento(
+            _residencia(_usuario()),
+            categoria,  # categoria de energia
+            recurso=Recurso.AGUA,
+            potencia_kw=None,
+            vazao_litros_min=Decimal(9),
+        )
+    )
+    _falha(sessao, "fk_equipamento_categoria_mesmo_recurso")
+
+
+# ---------- usuário ----------
+def test_email_e_unico_e_em_minusculas(sessao: Session) -> None:
+    sessao.add(_usuario("Ana@Exemplo.com"))
+    _falha(sessao, "email_minusculo")
+
+
+def test_email_duplicado_e_recusado(sessao: Session) -> None:
     sessao.add_all([_usuario(), _usuario()])
-
-    with pytest.raises(IntegrityError, match="uq_usuario_email"):
-        sessao.flush()
+    _falha(sessao, "uq_usuario_email")
 
 
-def test_excluir_usuario_remove_residencias_e_equipamentos(
-    sessao: Session, categoria: Categoria
+# ---------- simulação e recomendação ----------
+@pytest.mark.parametrize(
+    ("mudancas", "constraint"),
+    [
+        ({"consumo_inicial_energia": None}, "consumo_conforme_recurso"),
+        ({"consumo_inicial_agua": Decimal(1)}, "consumo_conforme_recurso"),
+        ({"consumo_estimado_energia": Decimal(-1)}, "consumo_nao_negativo"),
+        ({"status": StatusSimulacao.ENCERRADA}, "encerramento_coerente"),
+        ({"encerrada_em": datetime.now(UTC)}, "encerramento_coerente"),
+    ],
+)
+def test_banco_recusa_simulacao_incoerente(
+    sessao: Session, mudancas: dict[str, Any], constraint: str
 ) -> None:
-    usuario = _usuario()
-    _equipamento(_residencia(usuario), categoria)
-    sessao.add(usuario)
+    sessao.add(_simulacao(_residencia(_usuario()), **mudancas))
+    _falha(sessao, constraint)
+
+
+def test_so_uma_simulacao_ativa_por_residencia(sessao: Session, cenario: Recomendacao) -> None:
+    residencia = cenario.simulacao.residencia
+    encerrada = _simulacao(
+        residencia, status=StatusSimulacao.ENCERRADA, encerrada_em=datetime.now(UTC)
+    )
+    sessao.add(encerrada)
     sessao.flush()
 
-    sessao.delete(usuario)
+    sessao.add(_simulacao(residencia))
+    _falha(sessao, "uq_simulacao_uma_ativa_por_residencia")
+
+
+def test_recomendacao_nao_mistura_residencias(
+    sessao: Session, cenario: Recomendacao, categoria: Categoria
+) -> None:
+    equipamento_alheio = _equipamento(_residencia(_usuario("bia@exemplo.com")), categoria)
+    sessao.add(_recomendacao(cenario.simulacao, equipamento_alheio, posicao=2))
+    _falha(sessao, "fk_recomendacao_equipamento_mesma_residencia")
+
+
+def test_posicoes_podem_ser_trocadas_na_mesma_transacao(
+    sessao: Session, cenario: Recomendacao, categoria: Categoria
+) -> None:
+    outra = _recomendacao(
+        cenario.simulacao, _equipamento(cenario.simulacao.residencia, categoria), posicao=2
+    )
+    sessao.add(outra)
     sessao.flush()
 
-    assert sessao.scalars(select(Equipamento)).all() == []
+    cenario.posicao, outra.posicao = 2, 1
+    sessao.flush()
+    sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    assert (cenario.posicao, outra.posicao) == (2, 1)
+
+
+def test_posicao_repetida_e_recusada_ao_confirmar(
+    sessao: Session, cenario: Recomendacao, categoria: Categoria
+) -> None:
+    sessao.add(
+        _recomendacao(
+            cenario.simulacao, _equipamento(cenario.simulacao.residencia, categoria), posicao=1
+        )
+    )
+    sessao.flush()
+
+    with pytest.raises(IntegrityError, match="uq_recomendacao_posicao"):
+        sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+
+# ---------- exclusões ----------
+def test_equipamento_com_recomendacao_nao_pode_ser_apagado(
+    sessao: Session, cenario: Recomendacao
+) -> None:
+    sessao.delete(cenario.equipamento)
+    _falha(sessao, "fk_recomendacao_equipamento_mesma_residencia")
+
+
+def test_excluir_o_dono_apaga_todo_o_historico_da_residencia(
+    sessao: Session, cenario: Recomendacao, categoria: Categoria
+) -> None:
+    sessao.delete(cenario.simulacao.residencia.usuario)
+    sessao.flush()
+
+    for modelo in (Residencia, Equipamento, Simulacao, Recomendacao):
+        assert sessao.scalars(select(modelo)).all() == []
     assert sessao.scalars(select(Categoria)).one() is categoria
 
 
-def test_categoria_em_uso_nao_pode_ser_excluida(sessao: Session, categoria: Categoria) -> None:
-    sessao.add(_equipamento(_residencia(_usuario()), categoria))
+def test_excluir_quem_respondeu_mantem_o_feedback(sessao: Session, cenario: Recomendacao) -> None:
+    membro = _usuario("membro@exemplo.com")
+    cenario.feedback = Feedback(
+        usuario=membro,
+        resposta=Resposta.REJEITAR,
+        consumo_antes=Decimal("0.6"),
+        consumo_depois=Decimal("0.6"),
+    )
     sessao.flush()
 
-    sessao.delete(categoria)
+    sessao.delete(membro)
+    sessao.flush()
+    sessao.expire_all()
+
+    feedback = sessao.scalars(select(Feedback)).one()
+    assert feedback.usuario_id is None
+
+
+def test_categoria_em_uso_nao_pode_ser_excluida(sessao: Session, cenario: Recomendacao) -> None:
+    sessao.delete(cenario.equipamento.categoria)
     with pytest.raises(IntegrityError):
         sessao.flush()

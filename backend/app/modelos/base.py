@@ -49,6 +49,8 @@ class ComId:
 
 class ComDatas:
     criado_em: Mapped[datetime] = mapped_column(server_default=func.now(), sort_order=100)
+    # clock_timestamp(): hora real da alteração (now() seria o início da transação).
+    # Vale para atualizações feitas pelo ORM; UPDATE em SQL puro precisa definir o campo.
     atualizado_em: Mapped[datetime] = mapped_column(
-        server_default=func.now(), onupdate=func.now(), sort_order=101
+        server_default=func.now(), onupdate=func.clock_timestamp(), sort_order=101
     )

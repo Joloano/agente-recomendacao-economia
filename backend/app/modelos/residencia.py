@@ -37,13 +37,16 @@ class Residencia(ComId, ComDatas, Base):
 
     usuario: Mapped["Usuario"] = relationship(back_populates="residencias")
     preferencia: Mapped["Preferencia | None"] = relationship(
-        back_populates="residencia", cascade="all, delete-orphan", uselist=False
+        back_populates="residencia",
+        cascade="all, delete-orphan",
+        uselist=False,
+        passive_deletes=True,
     )
     equipamentos: Mapped[list["Equipamento"]] = relationship(
-        back_populates="residencia", cascade="all, delete-orphan"
+        back_populates="residencia", cascade="all, delete-orphan", passive_deletes=True
     )
     simulacoes: Mapped[list["Simulacao"]] = relationship(
-        back_populates="residencia", cascade="all, delete-orphan"
+        back_populates="residencia", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
