@@ -1,0 +1,46 @@
+# Desenvolvimento (carregado automaticamente pelo `docker compose up`):
+#   - API com hot reload (código montado do disco) e porta 8000 exposta
+#   - banco exposto em 127.0.0.1:55432 (PORTA_DB) para ferramentas locais
+#   - Mailpit para ver os e-mails enviados: http://localhost:8025
+#   - pgAdmin opcional: docker compose --profile dev up  →  http://localhost:5050
+# Hot reload do frontend: rode `npm start` em frontend/ (o proxy aponta para a API em :8000).
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:${PORTA_DB:-55432}:5432"
+
+  api:
+    command:
+      - uvicorn
+      - app.main:app
+      - --host=0.0.0.0
+      - --port=8000
+      - --reload
+      - --reload-dir=/app/app
+    volumes:
+      - ./backend/app:/app/app:ro
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORTA: "1025"
+    ports:
+      - "127.0.0.1:${PORTA_API:-8000}:8000"
+
+  mailpit:
+    image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks: [interna]
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    profiles: [dev]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${ADMIN_EMAIL:-admin@exemplo.com}
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_SENHA}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "127.0.0.1:5050:80"
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [interna]

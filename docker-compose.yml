@@ -1,0 +1,88 @@
+# Pilha completa: banco, migração, API e interface.
+#   cp .env.example .env && docker compose up --build
+# Em desenvolvimento, o docker-compose.override.yml (carregado automaticamente) expõe as portas
+# da API e do banco, liga o hot reload da API e adiciona o Mailpit. Em produção, use só este
+# arquivo: docker compose -f docker-compose.yml up -d
+
+name: agente-economia
+
+x-endurecido: &endurecido
+  # Sem escalar privilégios e sem capacidades do kernel além das necessárias.
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+      POSTGRES_USER: ${POSTGRES_USUARIO:?defina POSTGRES_USUARIO no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no .env}
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    networks: [interna]
+
+  # Aplica as migrações uma vez, antes da API (a API não migra ao subir).
+  migrar:
+    <<: *endurecido
+    build: ./backend
+    image: agente-economia-api:local
+    command: ["migrar"]
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+    read_only: true
+    tmpfs: [/tmp]
+    restart: "no"
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [interna]
+
+  api:
+    <<: *endurecido
+    image: agente-economia-api:local
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      MIGRAR_AO_SUBIR: "false"
+      # A API não é publicada para fora: só o nginx do serviço web (rede privada do Docker)
+      # chega a ela, então as faixas privadas podem enviar X-Forwarded-*.
+      IPS_PROXY_CONFIAVEIS: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      migrar: { condition: service_completed_successfully }
+    networks: [interna]
+
+  web:
+    <<: *endurecido
+    build: ./frontend
+    image: agente-economia-web:local
+    environment:
+      API_UPSTREAM: http://api:8000
+    ports:
+      - "${PORTA_WEB:-4200}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101
+      - /etc/nginx/conf.d:uid=101,gid=101
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [interna]
+
+networks:
+  interna:
+
+volumes:
+  dados-postgres:

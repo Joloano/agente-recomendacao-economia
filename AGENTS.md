@@ -46,11 +46,13 @@ Todo o backend é em Python. Nada de lógica de negócio no frontend.
 ├── frontend/
 │   ├── src/app/
 │   ├── Dockerfile
-│   └── nginx.conf
+│   ├── nginx.conf.template
+│   └── nginx-seguranca.conf
 ├── dados/                # datasets CSV de seed (energia e água)
 ├── docs/diagramas.md     # diagrama ER e de classes
 ├── legado/agente_energia.py  # versão original do Trabalho 2 (referência)
-├── docker-compose.yml
+├── docker-compose.yml          # produção
+├── docker-compose.override.yml # desenvolvimento (carregado automaticamente)
 ├── .env.example
 └── README.md
 ```
@@ -87,7 +89,7 @@ Cada recurso é uma `EstrategiaRecurso`; o núcleo do agente (`app/agente/`) é 
 
 ```bash
 docker compose up --build          # sobe db, api e web
-docker compose exec api alembic upgrade head
+docker compose run --rm migrar                # aplica as migrações
 docker compose exec api pytest
 docker compose exec api ruff check .
 ```
