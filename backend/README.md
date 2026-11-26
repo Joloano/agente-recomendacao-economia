@@ -15,6 +15,23 @@ uvicorn app.main:app --reload
 
 Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/health
 
+## Autenticação
+
+| Rota | O quê |
+|---|---|
+| `POST /api/v1/auth/registrar` | Cria uma conta de **cliente** (o papel nunca vem do corpo) |
+| `POST /api/v1/auth/login` | OAuth2 *password* (`username` = e-mail) → token JWT de acesso |
+| `GET /api/v1/auth/eu` | Usuário autenticado |
+
+- Senhas com argon2id; política de no mínimo 10 caracteres, sem regras de composição forçadas
+  (NIST SP 800-63B), não igual ao e-mail.
+- JWT com algoritmo fixo, `iss`, `aud`, `exp` obrigatório e `jti`. O papel é lido do banco a cada
+  requisição: desativar ou rebaixar alguém vale na hora.
+- Login inválido, e-mail inexistente e conta inativa dão a mesma resposta (401), com tempo parecido.
+- Nas rotas, use `UsuarioDep` (autenticado), `AdminDep` (só admin) e `garantir_acesso(usuario,
+  dono_id, "Recurso")`. Cliente que tenta acessar dado de outra pessoa recebe **404**, para não
+  revelar que o dado existe.
+
 ## Docker
 
 ```bash

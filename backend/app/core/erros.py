@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from http import HTTPStatus
-from typing import Any
+from typing import Any, ClassVar
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,6 +16,7 @@ class ErroDominio(Exception):
     """Erro de regra de negócio, convertido em resposta HTTP pelo tratador."""
 
     status = HTTPStatus.BAD_REQUEST
+    cabecalhos: ClassVar[Mapping[str, str] | None] = None
 
     def __init__(self, detalhe: str) -> None:
         super().__init__(detalhe)
@@ -32,6 +33,15 @@ class Conflito(ErroDominio):
 
 class AcessoNegado(ErroDominio):
     status = HTTPStatus.FORBIDDEN
+
+
+class NaoAutenticado(ErroDominio):
+    status = HTTPStatus.UNAUTHORIZED
+    cabecalhos: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
+
+
+class DadosRecusados(ErroDominio):
+    status = HTTPStatus.UNPROCESSABLE_ENTITY
 
 
 def problema(
@@ -82,7 +92,7 @@ async def _tratar_http(request: Request, exc: Exception) -> JSONResponse:
 async def _tratar_dominio(request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, ErroDominio):  # pragma: no cover
         raise exc
-    return problema(request, exc.status, exc.detalhe)
+    return problema(request, exc.status, exc.detalhe, headers=exc.cabecalhos)
 
 
 def registrar_tratadores(app: FastAPI) -> None:
