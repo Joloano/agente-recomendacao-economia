@@ -1,5 +1,6 @@
 """Senhas (argon2id) e tokens de acesso (JWT)."""
 
+import threading
 import unicodedata
 import uuid
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ PUBLICO = "agente-economia-api"
 
 # Parâmetros padrão do argon2-cffi (argon2id, RFC 9106, perfil de baixa memória).
 _hasher = PasswordHasher()
+# No máximo 4 hashes argon2 simultâneos por processo (~256 MiB de pico), mesmo sob ataque.
+_SEMAFORO_HASH = threading.BoundedSemaphore(4)
 # Hash de uma senha qualquer: usado quando o e-mail não existe, para o tempo de resposta
 # não revelar quais e-mails estão cadastrados.
 _HASH_FICTICIO = _hasher.hash("senha-ficticia-para-tempo-constante")
@@ -60,7 +63,8 @@ def validar_politica_senha(senha: str, email: str = "") -> None:
 
 
 def gerar_hash(senha: str) -> str:
-    return _hasher.hash(normalizar_senha(senha))
+    with _SEMAFORO_HASH:
+        return _hasher.hash(normalizar_senha(senha))
 
 
 def verificar_senha(senha: str, senha_hash: str | None) -> bool:
@@ -72,7 +76,8 @@ def verificar_senha(senha: str, senha_hash: str | None) -> bool:
     if len(senha) > TAMANHO_MAXIMO_SENHA * 4:
         senha, senha_hash = "x", None
     try:
-        resultado = _hasher.verify(senha_hash or _HASH_FICTICIO, normalizar_senha(senha))
+        with _SEMAFORO_HASH:
+            resultado = _hasher.verify(senha_hash or _HASH_FICTICIO, normalizar_senha(senha))
         return resultado and senha_hash is not None
     except (VerificationError, InvalidHashError, UnicodeError):
         return False

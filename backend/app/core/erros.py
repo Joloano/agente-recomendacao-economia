@@ -22,6 +22,9 @@ class ErroDominio(Exception):
         super().__init__(detalhe)
         self.detalhe = detalhe
 
+    def cabecalhos_resposta(self) -> Mapping[str, str] | None:
+        return self.cabecalhos
+
 
 class NaoEncontrado(ErroDominio):
     status = HTTPStatus.NOT_FOUND
@@ -100,7 +103,7 @@ async def _tratar_http(request: Request, exc: Exception) -> JSONResponse:
 async def _tratar_dominio(request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, ErroDominio):  # pragma: no cover
         raise exc
-    return problema(request, exc.status, exc.detalhe, headers=exc.cabecalhos)
+    return problema(request, exc.status, exc.detalhe, headers=exc.cabecalhos_resposta())
 
 
 def registrar_tratadores(app: FastAPI) -> None:

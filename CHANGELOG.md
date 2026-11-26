@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
+- Limite de tentativas: login (5 falhas por e-mail e 20 por IP a cada 15 min; o acerto zera o e-mail) e cadastro (10 por IP por hora), com 429 e `Retry-After`; contagem no PostgreSQL (vale entre workers e réplicas) com HMAC no lugar do e-mail e do IP; no máximo 4 hashes argon2 simultâneos por processo.
 - Gestão de usuários pelo admin (`/admin/usuarios`): lista paginada com busca e filtros, criação (inclusive de admins), edição parcial, promoção, ativação e exclusão, sempre mantendo ao menos um admin ativo (com trava contra corrida). Perfil próprio (`/usuarios/eu`): editar nome e e-mail e trocar a senha. Paginação padrão `Pagina[T]` para todas as listas.
 - Serviço de e-mail transacional (padrão Adapter): SMTP (inclusive relay de SES, Brevo e Resend) e envio em memória para testes; modelos HTML e texto em português (boas-vindas, verificação, recuperação de senha, alertas) com Jinja2 e escape automático; guia de SPF, DKIM e DMARC em `docs/email.md`.
 - Autenticação: cadastro de cliente, login OAuth2 com JWT, `/auth/eu`, senhas argon2id com política mínima, dependências `usuario_atual`/`exigir_admin` e `garantir_acesso` (cliente só vê o que é seu, com 404; admin vê tudo).
