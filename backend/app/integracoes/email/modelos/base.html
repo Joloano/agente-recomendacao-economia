@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>{{ assunto }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f5f8;font-family:Roboto,Arial,Helvetica,sans-serif;color:#1b1c1f;">
+  {# Texto de pré-visualização mostrado pelos clientes de e-mail #}
+  <div style="display:none;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">{% block previa %}{% endblock %}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5f8;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <!--[if mso]><table role="presentation" width="560" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
+          <tr>
+            <td style="padding:24px 28px 8px;font-size:20px;font-weight:500;">
+              <span aria-hidden="true">&#9889;&#128167;</span>
+              {{ nome_app }}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 28px 24px;font-size:16px;line-height:1.55;">
+              {% block conteudo %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 28px 24px;font-size:12px;line-height:1.5;color:#5f6168;border-top:1px solid #e3e5ea;">
+              Você recebeu este e-mail porque tem uma conta no {{ nome_app }}.
+              Se não reconhece esta mensagem, pode ignorá-la com segurança.
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

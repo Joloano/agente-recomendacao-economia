@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block previa %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+<p>Olá, {{ nome }}!</p>
+<p style="font-size:18px;font-weight:500;">{{ titulo }}</p>
+<p>{{ descricao }}</p>
+{% with rotulo="Ver detalhes" %}{% include "_botao.html" %}{% endwith %}
+{% endblock %}

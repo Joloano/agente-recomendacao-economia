@@ -25,6 +25,7 @@ services:
     environment:
       SMTP_HOST: mailpit
       SMTP_PORTA: "1025"
+      SMTP_SEGURANCA: nenhuma
     ports:
       - "127.0.0.1:${PORTA_API:-8000}:8000"
 

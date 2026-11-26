@@ -18,6 +18,8 @@ PRODUCAO_VALIDA: dict[str, Any] = {
     "admin_senha": "Senha-Do-Admin-Forte!",
     "cors_origens": "https://app.empresa.com.br",
     "url_frontend": "https://app.empresa.com.br",
+    "smtp_host": "smtp.provedor.com",
+    "smtp_seguranca": "starttls",
 }
 
 
@@ -91,6 +93,8 @@ def test_producao_exige_variaveis_explicitas(ambiente: Ambiente) -> None:
         ("admin_senha", "troque-esta-senha-forte", "ADMIN_SENHA precisa"),
         ("jwt_segredo", "segredo-curto", "JWT_SEGREDO precisa"),
         ("cors_origens", "http://localhost:4200", "não pode apontar para http://localhost:4200"),
+        ("smtp_seguranca", "nenhuma", "SMTP_SEGURANCA precisa ser starttls ou ssl"),
+        ("smtp_host", "mailpit", "SMTP_HOST precisa apontar para o provedor"),
     ],
 )
 def test_producao_recusa_valores_fracos(campo: str, valor: str, mensagem: str) -> None:

@@ -7,7 +7,7 @@ ser definidas explicitamente e segredos fracos ou padrão impedem a aplicação 
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
 from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
@@ -105,12 +105,15 @@ class Configuracoes(ConfiguracoesBanco):
     admin_email: EmailStr = "admin@exemplo.com"
     admin_senha: SecretStr = SecretStr("troque-esta-senha-forte")
 
+    email_provedor: Literal["smtp", "memoria"] = "smtp"
     email_remetente: EmailStr = "nao-responda@exemplo.com"
     smtp_host: str = "localhost"
     smtp_porta: int = 1025
     smtp_usuario: str = ""
     smtp_senha: SecretStr = SecretStr("")
-    smtp_tls: bool = False
+    # nenhuma (só desenvolvimento, ex.: Mailpit) | starttls (porta 587) | ssl (SMTPS, porta 465)
+    smtp_seguranca: Literal["nenhuma", "starttls", "ssl"] = "starttls"
+    smtp_timeout_s: int = Field(default=10, gt=0)
 
     url_frontend: str = "http://localhost:4200"
 
@@ -133,6 +136,12 @@ class Configuracoes(ConfiguracoesBanco):
         return self.ambiente in {Ambiente.STAGING, Ambiente.PRODUCAO}
 
     @model_validator(mode="after")
+    def _login_smtp_exige_criptografia(self) -> "Configuracoes":
+        if self.smtp_usuario and self.smtp_seguranca == "nenhuma":
+            raise ValueError("Login SMTP sem STARTTLS/SSL mandaria a senha em texto puro")
+        return self
+
+    @model_validator(mode="after")
     def _validar_producao(self) -> "Configuracoes":
         if "*" in self.cors_origens:
             raise ValueError("CORS_ORIGENS não pode conter '*'; liste as origens permitidas")
@@ -142,6 +151,7 @@ class Configuracoes(ConfiguracoesBanco):
             *self._faltando_em_producao(),
             *self._segredos_fracos(),
             *self._origens_locais(),
+            *self._email_inseguro(),
         ]
         if problemas:
             raise ValueError("Configuração inválida para produção: " + "; ".join(problemas))
@@ -161,6 +171,16 @@ class Configuracoes(ConfiguracoesBanco):
             segredo = valor.get_secret_value()
             if segredo in VALORES_INSEGUROS or len(segredo) < minimo:
                 problemas.append(f"{nome} precisa de um valor próprio com {minimo}+ caracteres")
+        return problemas
+
+    def _email_inseguro(self) -> list[str]:
+        if self.email_provedor != "smtp":
+            return []
+        problemas = []
+        if self.smtp_seguranca == "nenhuma":
+            problemas.append("SMTP_SEGURANCA precisa ser starttls ou ssl")
+        if self.smtp_host in {"localhost", "127.0.0.1", "mailpit"}:
+            problemas.append("SMTP_HOST precisa apontar para o provedor de e-mail")
         return problemas
 
     def _origens_locais(self) -> list[str]:

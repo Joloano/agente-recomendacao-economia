@@ -1,0 +1,6 @@
+Olá, {{ nome }}!
+
+{{ titulo }}
+{{ descricao }}
+
+Ver detalhes: {{ link }}

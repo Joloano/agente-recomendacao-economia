@@ -1,0 +1,9 @@
+Olá, {{ nome }}!
+
+Sua conta no {{ nome_app }} está pronta. Em três passos você já recebe recomendações:
+
+1. Cadastre sua residência e as metas de consumo.
+2. Adicione os equipamentos de energia e de água.
+3. Veja as recomendações e aceite as que fizerem sentido.
+
+Comece agora: {{ url_frontend }}/inicio

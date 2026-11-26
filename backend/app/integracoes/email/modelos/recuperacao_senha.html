@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block previa %}Recebemos um pedido para redefinir sua senha.{% endblock %}
+{% block conteudo %}
+<p>Olá, {{ nome }}!</p>
+<p>Recebemos um pedido para redefinir a senha da sua conta.</p>
+{% with rotulo="Criar nova senha" %}{% include "_botao.html" %}{% endwith %}
+<p>O link vale por {{ validade_minutos }} minutos e só pode ser usado uma vez.
+Se não foi você, ignore este e-mail: sua senha continua a mesma.</p>
+{% endblock %}
