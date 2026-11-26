@@ -23,6 +23,10 @@ updates:
     directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: "build" }
+    ignore:
+      # Versão maior do Postgres muda o formato dos dados (pg_upgrade): só com plano e backup.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
   # Dependências do Angular, agrupadas para atualizar juntas
   - package-ecosystem: npm
     directory: /frontend
@@ -36,6 +40,10 @@ updates:
       demais:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # O TypeScript acompanha a versão suportada pelo Angular; sobe junto com o `ng update`.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
