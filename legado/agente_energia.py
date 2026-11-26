@@ -5,8 +5,10 @@
 
 
 import csv
+from pathlib import Path
 
-CAMINHO_DATASET = "dados/dataset_consumo_energia.csv"
+# o dataset fica na pasta dados/ na raiz do repositório, um nível acima de legado/
+CAMINHO_DATASET = Path(__file__).resolve().parent.parent / "dados" / "dataset_consumo_energia.csv"
 RESIDENCIA_SELECIONADA = "R02"
 DESCRICOES_POR_CATEGORIA = {
     "lavanderia": "Acumular roupas e fazer lavagens com carga completa.",

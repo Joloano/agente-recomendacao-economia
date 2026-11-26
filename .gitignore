@@ -1,6 +1,38 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node / Angular
+node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Docker
+postgres-data/
+backups/
+
+# IDEs e sistema
 .idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Outros
 *.zip
+*.log
