@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
+- Frontend Angular 22 com Angular Material 3: layout responsivo (barra superior, menu lateral que esconde itens de admin, atalho para o conteúdo), tema energia/água, `pt-BR`, `ApiService` que traduz erros RFC 7807, sessão com sinais, proxy de desenvolvimento, ESLint, Prettier e Vitest.
 - Imagem Docker da API: multi-stage, base fixada por digest, dependências com hashes (`requirements-lock.txt`), usuário sem privilégios e código só leitura, `HEALTHCHECK` de liveness e entrypoint que migra (com advisory lock entre réplicas) e sobe o Uvicorn.
 - Rota `/api/v1/health/live` (liveness sem banco) e Dependabot para a imagem base, dependências Python e Actions.
 - Banco PostgreSQL: modelos SQLAlchemy 2 (usuário, residência, preferência, categoria, equipamento, simulação, recomendação e feedback) com CHECKs de escalas, medida conforme o recurso e chaves estrangeiras indexadas; Alembic com migração inicial e testes de integração (upgrade, downgrade, sincronia modelo × migração e constraints).

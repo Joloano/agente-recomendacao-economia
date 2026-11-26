@@ -19,8 +19,8 @@ com o feedback (aceitar/rejeitar), atualizando o consumo estimado.
 | Backend | Python 3.12 (mínimo 3.11), FastAPI, SQLAlchemy 2, Alembic, Pydantic v2 |
 | Banco | PostgreSQL 16 |
 | Autenticação | JWT com PyJWT (OAuth2 password flow), senhas com argon2 |
-| Frontend | Angular (standalone components), Angular Material |
-| Testes | pytest + httpx (backend), Jasmine/Karma ou Jest (frontend) |
+| Frontend | Angular 22 (standalone, signals), Angular Material 3 |
+| Testes | pytest + httpx (backend), Vitest (frontend) |
 | Qualidade | ruff (lint + format), mypy, ESLint, Prettier |
 | Infra | Docker, Dockerfile por serviço, docker compose |
 
