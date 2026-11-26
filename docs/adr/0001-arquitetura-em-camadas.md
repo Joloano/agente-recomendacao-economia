@@ -15,7 +15,7 @@ banco e trocar a forma de entrada/saída sem reescrever o agente.
 
 Separar o backend em camadas: **api** (rotas FastAPI finas) → **services** (casos de uso) →
 **agente** (domínio em Python puro) e **repositórios** (SQLAlchemy). O domínio não importa nada de
-infraestrutura. Variações por recurso usam Strategy + Template Method + Factory Method; as regras de
+infraestrutura. Variações por recurso usam Strategy + Template Method, criadas por um registro imutável; as regras de
 elegibilidade, Chain of Responsibility; o acesso externo ao agente, uma Facade. Detalhes em
 [padrões de projeto](../padroes-de-projeto.md).
 
