@@ -15,6 +15,18 @@ uvicorn app.main:app --reload
 
 Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/health
 
+## Docker
+
+```bash
+docker build -t agente-api backend/
+docker run --env-file .env -p 8000:8000 agente-api          # migra e sobe a API
+docker run --env-file .env agente-api migrar                # só migra
+docker run --env-file .env agente-api python -m app.seed    # qualquer outro comando
+```
+
+A imagem é multi-stage (`python:3.12-slim`), roda como usuário sem privilégios (uid 1001), tem
+`HEALTHCHECK` em `/api/v1/health` e aplica as migrações ao subir (`MIGRAR_AO_SUBIR`).
+
 ## Banco e migrações
 
 ```bash
