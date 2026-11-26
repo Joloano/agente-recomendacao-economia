@@ -26,7 +26,7 @@ com o feedback (aceitar/rejeitar), atualizando o consumo estimado.
 
 Todo o backend é em Python. Nada de lógica de negócio no frontend.
 
-## Estrutura alvo
+## Estrutura
 
 ```
 .
@@ -34,7 +34,7 @@ Todo o backend é em Python. Nada de lógica de negócio no frontend.
 │   ├── app/
 │   │   ├── api/          # routers FastAPI (v1)
 │   │   ├── core/         # config, segurança, dependências
-│   │   ├── models/       # modelos SQLAlchemy
+│   │   ├── modelos/      # modelos SQLAlchemy (tabelas)
 │   │   ├── schemas/      # Pydantic
 │   │   ├── services/     # regras de aplicação
 │   │   ├── agente/       # núcleo do agente (puro, sem I/O)
