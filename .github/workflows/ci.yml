@@ -165,7 +165,7 @@ jobs:
       - name: Verificar Dockerfile
         id: existe
         run: test -f ${{ matrix.servico }}/Dockerfile && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.existe.outputs.sim == 'true'
       - uses: docker/build-push-action@v6
         if: steps.existe.outputs.sim == 'true'
