@@ -18,10 +18,18 @@ def _sem_controle(texto: str) -> str:
     return texto
 
 
+def _sem_invisiveis(texto: str) -> str:
+    # Cf: inversão bidi (U+202E) e caracteres de largura zero falsificariam a exibição do nome.
+    if any(unicodedata.category(c) == "Cf" for c in texto):
+        raise ValueError("não pode conter caracteres invisíveis ou de controle de direção")
+    return texto
+
+
 Nome = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=2, max_length=120),
     AfterValidator(_sem_controle),
+    AfterValidator(_sem_invisiveis),
 ]
 
 
