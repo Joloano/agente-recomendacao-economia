@@ -6,11 +6,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.dependencias import ConfigDep, SessaoDep, UsuarioDep
 from app.core.seguranca import criar_token_acesso
 from app.esquemas.autenticacao import RegistroEntrada, Token, UsuarioSaida
-from app.servicos.autenticacao import CredenciaisInvalidas, ServicoAutenticacao
+from app.servicos.autenticacao import ServicoAutenticacao
 from app.servicos.limite import LimitadorTentativas
 
 RESPOSTA_429: dict[int | str, dict[str, Any]] = {
-    429: {"description": "Muitas tentativas; veja o cabeçalho Retry-After"}
+    429: {"description": "Muitas tentativas; veja o cabeçalho Retry-After"},
+    503: {"description": "Servidor ocupado; veja o cabeçalho Retry-After"},
 }
 
 
@@ -36,10 +37,8 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 def registrar(
     dados: RegistroEntrada, sessao: SessaoDep, config: ConfigDep, request: Request
 ) -> UsuarioSaida:
-    limitador = LimitadorTentativas(sessao, config)
-    origem = {"ip": _ip(request)}
-    limitador.verificar("cadastro", origem)
-    limitador.registrar("cadastro", origem)  # toda tentativa conta, com sucesso ou não
+    # Toda tentativa de cadastro conta, com sucesso ou não.
+    LimitadorTentativas(sessao, config).reservar("cadastro", ip=_ip(request))
     usuario = ServicoAutenticacao(sessao).registrar(dados)
     return UsuarioSaida.model_validate(usuario)
 
@@ -58,15 +57,12 @@ def entrar(
 ) -> Token:
     # No OAuth2, o campo se chama "username"; aqui ele recebe o e-mail.
     limitador = LimitadorTentativas(sessao, config)
-    origem = {"email": formulario.username, "ip": _ip(request)}
-    # Verifica antes do argon2: quem estourou o limite não gasta CPU nem memória do servidor.
-    limitador.verificar("login", origem)
-    try:
-        usuario = ServicoAutenticacao(sessao).autenticar(formulario.username, formulario.password)
-    except CredenciaisInvalidas:
-        limitador.registrar("login", origem)
-        raise
-    limitador.zerar("login", "email", formulario.username)
+    # Reserva antes do argon2: quem estourou o limite não gasta CPU nem memória, e uma
+    # rajada simultânea não passa (a tentativa já conta antes da verificação da senha).
+    ip = _ip(request)
+    reserva = limitador.reservar("login", email=formulario.username, ip=ip)
+    usuario = ServicoAutenticacao(sessao).autenticar(formulario.username, formulario.password)
+    limitador.liberar(reserva, formulario.username, ip)
     token, expira = criar_token_acesso(usuario.id, usuario.papel, config)
     return Token(access_token=token, expira_em=expira)
 

@@ -43,6 +43,7 @@ class ServicoAutenticacao:
             if normalizado
             else None
         )
+        self._sessao.commit()  # libera a conexão do banco durante o argon2
         senha_ok = verificar_senha(senha, usuario.senha_hash if usuario else None)
         if usuario is None or not senha_ok or not usuario.ativo:
             raise CredenciaisInvalidas(MENSAGEM_LOGIN_INVALIDO)

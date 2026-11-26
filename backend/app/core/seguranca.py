@@ -3,16 +3,21 @@
 import threading
 import unicodedata
 import uuid
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
+from http import HTTPStatus
 from pathlib import Path
+from typing import ClassVar
 
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 
 from app.core.config import Configuracoes
+from app.core.erros import ErroDominio
 from app.modelos.enums import Papel
 
 TAMANHO_MINIMO_SENHA = 10
@@ -24,6 +29,26 @@ PUBLICO = "agente-economia-api"
 _hasher = PasswordHasher()
 # No máximo 4 hashes argon2 simultâneos por processo (~256 MiB de pico), mesmo sob ataque.
 _SEMAFORO_HASH = threading.BoundedSemaphore(4)
+ESPERA_MAXIMA_HASH_S = 2.0
+
+
+class ServidorOcupado(ErroDominio):
+    """Fila do argon2 cheia: melhor responder 503 rápido do que prender a requisição."""
+
+    status = HTTPStatus.SERVICE_UNAVAILABLE
+    cabecalhos: ClassVar[Mapping[str, str] | None] = {"Retry-After": "2"}
+
+
+@contextmanager
+def _vaga_para_hash() -> Iterator[None]:
+    if not _SEMAFORO_HASH.acquire(timeout=ESPERA_MAXIMA_HASH_S):
+        raise ServidorOcupado("O servidor está ocupado. Tente de novo em instantes.")
+    try:
+        yield
+    finally:
+        _SEMAFORO_HASH.release()
+
+
 # Hash de uma senha qualquer: usado quando o e-mail não existe, para o tempo de resposta
 # não revelar quais e-mails estão cadastrados.
 _HASH_FICTICIO = _hasher.hash("senha-ficticia-para-tempo-constante")
@@ -63,7 +88,7 @@ def validar_politica_senha(senha: str, email: str = "") -> None:
 
 
 def gerar_hash(senha: str) -> str:
-    with _SEMAFORO_HASH:
+    with _vaga_para_hash():
         return _hasher.hash(normalizar_senha(senha))
 
 
@@ -76,7 +101,7 @@ def verificar_senha(senha: str, senha_hash: str | None) -> bool:
     if len(senha) > TAMANHO_MAXIMO_SENHA * 4:
         senha, senha_hash = "x", None
     try:
-        with _SEMAFORO_HASH:
+        with _vaga_para_hash():
             resultado = _hasher.verify(senha_hash or _HASH_FICTICIO, normalizar_senha(senha))
         return resultado and senha_hash is not None
     except (VerificationError, InvalidHashError, UnicodeError):
