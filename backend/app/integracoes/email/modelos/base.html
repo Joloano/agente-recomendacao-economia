@@ -8,14 +8,15 @@
 </head>
 <body style="margin:0;padding:0;background:#f3f5f8;font-family:Roboto,Arial,Helvetica,sans-serif;color:#1b1c1f;">
   {# Texto de pré-visualização mostrado pelos clientes de e-mail #}
-  <div style="display:none;max-height:0;overflow:hidden;">{% block previa %}{% endblock %}</div>
+  <div style="display:none;mso-hide:all;font-size:0;line-height:0;max-height:0;overflow:hidden;">{% block previa %}{% endblock %}</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5f8;">
     <tr>
       <td align="center" style="padding:24px 12px;">
+        <!--[if mso]><table role="presentation" width="560" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
           <tr>
             <td style="padding:24px 28px 8px;font-size:20px;font-weight:500;">
-              <span style="color:#9a5b00;">&#9889;</span><span style="color:#0061a4;">&#128167;</span>
+              <span aria-hidden="true">&#9889;&#128167;</span>
               {{ nome_app }}
             </td>
           </tr>
@@ -31,6 +32,7 @@
             </td>
           </tr>
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
       </td>
     </tr>
   </table>

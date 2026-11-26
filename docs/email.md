@@ -16,7 +16,7 @@ http://localhost:8025, e nada sai para a internet.
 ## Produção com um provedor
 
 1. Crie uma conta no provedor e gere credenciais **SMTP** (não use a senha da conta).
-2. Configure no `.env`: `SMTP_HOST`, `SMTP_PORTA=587`, `SMTP_TLS=true`, `SMTP_USUARIO`,
+2. Configure no `.env`: `SMTP_HOST`, `SMTP_PORTA=587`, `SMTP_SEGURANCA=starttls` (ou `465` e `ssl`), `SMTP_USUARIO`,
    `SMTP_SENHA` e `EMAIL_REMETENTE` (um endereço do seu domínio).
 3. Verifique o domínio no provedor e publique os registros de DNS abaixo.
 
@@ -39,3 +39,7 @@ Comece com `p=none` por uma ou duas semanas, leia os relatórios e então suba p
 - O destinatário nunca vai para os logs (LGPD).
 - Os modelos ficam em `app/integracoes/email/modelos/`, cada um em HTML e em texto puro, com
   escape automático: dados do usuário nunca viram HTML.
+- Em produção, a configuração recusa `SMTP_SEGURANCA=nenhuma` e um `SMTP_HOST` local (Mailpit). Login
+  SMTP sem STARTTLS ou SSL é recusado em qualquer ambiente, porque mandaria a senha em texto puro.
+- Os links dos e-mails só podem apontar para a `URL_FRONTEND`: `javascript:` e domínios de terceiros
+  são recusados na montagem da mensagem.

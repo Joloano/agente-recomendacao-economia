@@ -1,8 +1,9 @@
 {# Botão grande e clicável no celular (área de toque ≥ 44 px), com o link também em texto. #}
 <table role="presentation" cellspacing="0" cellpadding="0" style="margin:24px 0;">
   <tr>
-    <td style="border-radius:24px;background:#0061a4;">
-      <a href="{{ link }}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:24px;">{{ rotulo }}</a>
+    {# Padding no td: o Outlook ignora padding em <a>; o botão inteiro fica clicável. #}
+    <td style="border-radius:24px;background:#0061a4;padding:14px 28px;mso-padding-alt:14px 28px;">
+      <a href="{{ link }}" style="display:inline-block;font-size:16px;font-weight:500;color:#ffffff;text-decoration:none;">{{ rotulo }}</a>
     </td>
   </tr>
 </table>

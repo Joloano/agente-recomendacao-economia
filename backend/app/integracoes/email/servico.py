@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from functools import cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
@@ -37,7 +38,16 @@ class ServicoEmail:
         self._enviador = enviador
         self._config = config
 
+    def _validar_link(self, link: str) -> None:
+        """Só links do próprio sistema: bloqueia `javascript:` e endereços de terceiros."""
+        alvo, base = urlparse(link), urlparse(self._config.url_frontend)
+        if (alvo.scheme, alvo.netloc) != (base.scheme, base.netloc):
+            raise ValueError("O link do e-mail precisa apontar para a URL_FRONTEND.")
+
     def montar(self, modelo: str, para: str, assunto: str, **dados: Any) -> Mensagem:
+        if "link" in dados:
+            self._validar_link(str(dados["link"]))
+        assunto = " ".join(assunto.split())  # sem quebras de linha (injeção de cabeçalho)
         contexto: Mapping[str, Any] = {
             "nome_app": self._config.nome_app,
             "url_frontend": self._config.url_frontend,
@@ -50,14 +60,16 @@ class ServicoEmail:
             assunto=assunto,
             html=ambiente.get_template(f"{modelo}.html").render(contexto),
             texto=ambiente.get_template(f"{modelo}.txt").render(contexto),
+            modelo=modelo,
         )
 
     def enviar(self, mensagem: Mensagem) -> bool:
         """Envia e devolve se deu certo. Pensado para rodar em segundo plano: não levanta."""
         try:
             self._enviador.enviar(mensagem)
-        except FalhaEnvioEmail:
-            log.exception("E-mail %r não enviado", mensagem.assunto)
+        except FalhaEnvioEmail as erro:
+            # Só o nome do modelo e o tipo do erro: assunto e destinatário podem ter dados pessoais.
+            log.warning("E-mail do modelo %s não enviado: %s", mensagem.modelo, erro)
             return False
         return True
 
