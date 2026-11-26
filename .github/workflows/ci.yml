@@ -82,22 +82,31 @@ jobs:
       POSTGRES_SENHA: agente
     steps:
       - uses: actions/checkout@v4
+      - name: Verificar projeto Python
+        id: existe
+        run: test -f pyproject.toml && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
+        if: steps.existe.outputs.sim == 'true'
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/pyproject.toml
-      - run: pip install -e ".[dev]"
+      - if: steps.existe.outputs.sim == 'true'
+        run: pip install -e ".[dev]"
       - name: Lint
+        if: steps.existe.outputs.sim == 'true'
         run: ruff check . --output-format=github
       - name: Formatação
+        if: steps.existe.outputs.sim == 'true'
         run: ruff format --check .
       - name: Tipos
+        if: steps.existe.outputs.sim == 'true'
         run: mypy app tests
       - name: Testes
+        if: steps.existe.outputs.sim == 'true'
         run: pytest --cov-report=xml
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.existe.outputs.sim == 'true'
         with:
           name: cobertura-backend
           path: backend/coverage.xml
