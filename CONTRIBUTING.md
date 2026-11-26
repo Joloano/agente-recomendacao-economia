@@ -12,7 +12,7 @@ Antes de começar, leia o [AGENTS.md](AGENTS.md).
 4. **Rode as verificações locais** (`pre-commit run --all-files` e os testes).
 5. **Abra o PR** usando o template, com `Closes #<n>` e o checklist da Definição de Pronto marcado.
 6. **Code review**: pelo menos uma revisão; comentários resolvidos antes do merge.
-7. **Merge** só com CI verde. A branch é apagada após o merge.
+7. **Merge** só com CI verde, sempre por *squash* (o título do PR vira o commit na `main`). A branch é apagada após o merge.
 
 ## Commits
 
@@ -34,19 +34,28 @@ Mudança incompatível: `feat!: ...` e um rodapé `BREAKING CHANGE: ...`.
 
 O título do PR segue o mesmo formato (é validado no CI).
 
-## Definição de Pronto (DoD)
+## Definição de Pronto
 
-Uma issue só está pronta quando:
+Uma issue só está pronta quando (é o mesmo checklist do template de PR):
 
 - [ ] Critérios de aceite da issue atendidos
 - [ ] Testes escritos e passando; cobertura não diminuiu
 - [ ] Lint, formatação e tipos sem erros (`pre-commit`)
-- [ ] Sem code smells evidentes (veja o checklist do PR)
-- [ ] Documentação, diagramas e `.env.example` atualizados quando necessário
-- [ ] ADR criado se a decisão for difícil de reverter
-- [ ] Nenhum segredo ou dado pessoal no código ou nos logs
-- [ ] PR revisado e aprovado; CI verde
+- [ ] Sem code smells (checklist abaixo)
+- [ ] Documentação, diagramas e `.env.example` atualizados (se aplicável)
+- [ ] ADR criado (se a decisão for difícil de reverter)
+- [ ] Sem segredos ou dados pessoais em código e logs
 - [ ] `CHANGELOG.md` atualizado (seção *Não lançado*)
+- [ ] PR revisado e aprovado; CI verde
+- [ ] Deploy em staging verificado (quando houver staging)
+
+### Code smells ([Refactoring Guru](https://refactoring.guru/pt-br/refactoring/smells))
+
+- [ ] Sem métodos longos (> 50 linhas) ou classes grandes
+- [ ] Sem código duplicado
+- [ ] Sem obsessão por primitivos (unidades e dinheiro com tipos próprios / `Decimal`)
+- [ ] Sem lista longa de parâmetros
+- [ ] Regra de negócio fora das rotas e dos componentes de tela
 
 ## Ferramentas locais
 
