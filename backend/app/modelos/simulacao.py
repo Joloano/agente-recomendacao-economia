@@ -111,10 +111,14 @@ class Recomendacao(ComId, ComDatas, Base):
             name="fk_recomendacao_simulacao_mesma_residencia",
         ),
         # Sem ondelete: equipamento com recomendações não pode ser apagado (use removido_em).
+        # Adiável: ao apagar a residência, a cascata remove equipamentos e recomendações no
+        # mesmo comando, e a checagem só acontece no fim da transação.
         ForeignKeyConstraint(
             ["equipamento_id", "residencia_id"],
             ["equipamento.id", "equipamento.residencia_id"],
             name="fk_recomendacao_equipamento_mesma_residencia",
+            deferrable=True,
+            initially="DEFERRED",
         ),
     )
 

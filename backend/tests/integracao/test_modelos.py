@@ -251,7 +251,10 @@ def test_recomendacao_nao_mistura_residencias(
 ) -> None:
     equipamento_alheio = _equipamento(_residencia(_usuario("bia@exemplo.com")), categoria)
     sessao.add(_recomendacao(cenario.simulacao, equipamento_alheio, posicao=2))
-    _falha(sessao, "fk_recomendacao_equipamento_mesma_residencia")
+    sessao.flush()
+
+    with pytest.raises(IntegrityError, match="fk_recomendacao_equipamento_mesma_residencia"):
+        sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
 
 def test_posicoes_podem_ser_trocadas_na_mesma_transacao(
@@ -289,18 +292,38 @@ def test_equipamento_com_recomendacao_nao_pode_ser_apagado(
     sessao: Session, cenario: Recomendacao
 ) -> None:
     sessao.delete(cenario.equipamento)
-    _falha(sessao, "fk_recomendacao_equipamento_mesma_residencia")
-
-
-def test_excluir_o_dono_apaga_todo_o_historico_da_residencia(
-    sessao: Session, cenario: Recomendacao, categoria: Categoria
-) -> None:
-    sessao.delete(cenario.simulacao.residencia.usuario)
     sessao.flush()
+
+    with pytest.raises(IntegrityError, match="fk_recomendacao_equipamento_mesma_residencia"):
+        sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+
+@pytest.mark.parametrize("tabela", ["usuario", "residencia"])
+def test_exclusao_pelo_banco_apaga_todo_o_historico(
+    sessao: Session, cenario: Recomendacao, categoria: Categoria, tabela: str
+) -> None:
+    """DELETE em SQL puro, sem nada na sessão: prova a cascata do banco, não a do ORM."""
+    residencia = cenario.simulacao.residencia
+    alvo = residencia.usuario_id if tabela == "usuario" else residencia.id
+    sessao.expunge_all()
+
+    sessao.execute(text(f"DELETE FROM {tabela} WHERE id = :id"), {"id": alvo})  # noqa: S608
+    sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
 
     for modelo in (Residencia, Equipamento, Simulacao, Recomendacao):
         assert sessao.scalars(select(modelo)).all() == []
-    assert sessao.scalars(select(Categoria)).one() is categoria
+    assert sessao.scalars(select(Categoria)).one().id == categoria.id
+
+
+def test_exclusao_pelo_orm_sem_filhos_carregados(sessao: Session, cenario: Recomendacao) -> None:
+    usuario_id = cenario.simulacao.residencia.usuario_id
+    sessao.expunge_all()
+
+    sessao.delete(sessao.get_one(Usuario, usuario_id))
+    sessao.flush()
+    sessao.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+
+    assert sessao.scalars(select(Recomendacao)).all() == []
 
 
 def test_excluir_quem_respondeu_mantem_o_feedback(sessao: Session, cenario: Recomendacao) -> None:

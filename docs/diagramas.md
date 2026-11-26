@@ -108,7 +108,8 @@ erDiagram
 - `equipamento (categoria_id, recurso) → categoria (id, recurso)`: a categoria é do mesmo recurso.
 - `recomendacao (simulacao_id, residencia_id)` e `(equipamento_id, residencia_id)`: a simulação e
   o equipamento pertencem à mesma residência.
-- Equipamento com recomendações não pode ser apagado; use `removido_em`.
+- Equipamento com recomendações não pode ser apagado; use `removido_em`. A FK é adiável, então a
+  cascata que apaga a residência inteira funciona e a recusa acontece ao confirmar a transação.
 - Excluir o usuário dono apaga as residências e todo o histórico delas (direito de eliminação). Se a
   conta de quem respondeu um feedback for excluída, o feedback fica com `usuario_id` nulo.
 - A posição é única por simulação; a constraint é adiável, para a reordenação trocar posições na

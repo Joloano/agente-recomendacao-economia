@@ -1,8 +1,8 @@
 """cria tabelas iniciais
 
-Revision ID: 7f3e2a5c82b4
+Revision ID: 86290e487499
 Revises:
-Create Date: 2026-11-25 22:14:14.128791
+Create Date: 2026-11-25 22:19:25.063464
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "7f3e2a5c82b4"
+revision: str = "86290e487499"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -362,6 +362,8 @@ def upgrade() -> None:
             ["equipamento_id", "residencia_id"],
             ["equipamento.id", "equipamento.residencia_id"],
             name="fk_recomendacao_equipamento_mesma_residencia",
+            initially="DEFERRED",
+            deferrable=True,
         ),
         sa.ForeignKeyConstraint(
             ["simulacao_id", "residencia_id"],
