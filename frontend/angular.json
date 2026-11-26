@@ -33,6 +33,10 @@
               }
             ],
             "styles": [
+              "@fontsource/roboto/300.css",
+              "@fontsource/roboto/400.css",
+              "@fontsource/roboto/500.css",
+              "material-symbols/outlined.css",
               "src/styles.scss"
             ]
           },
@@ -82,7 +86,8 @@
           }
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {}
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",

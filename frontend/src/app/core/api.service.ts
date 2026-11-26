@@ -13,6 +13,19 @@ export interface Problema {
   erros?: { campo: string; mensagem: string }[];
 }
 
+/** Mensagens usadas quando a API não envia um `detail` próprio em português. */
+const MENSAGENS_POR_STATUS: Record<number, string> = {
+  0: 'Não foi possível conectar ao servidor. Verifique sua conexão.',
+  400: 'Não foi possível concluir a ação. Revise os dados e tente de novo.',
+  401: 'Sua sessão expirou. Entre novamente.',
+  403: 'Você não tem permissão para fazer isso.',
+  404: 'Não encontramos o que você procurou.',
+  409: 'Esta ação conflita com o estado atual. Atualize a página e tente de novo.',
+  422: 'Dados inválidos. Revise os campos destacados.',
+  429: 'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.',
+};
+const MENSAGEM_GENERICA = 'Ocorreu um erro inesperado. Tente novamente.';
+
 /** Erro já traduzido para a interface: sempre tem uma mensagem em português. */
 export class ErroApi extends Error {
   constructor(
@@ -25,13 +38,21 @@ export class ErroApi extends Error {
   }
 
   static de(resposta: HttpErrorResponse): ErroApi {
-    if (resposta.status === 0) {
-      return new ErroApi(0, 'Não foi possível conectar ao servidor. Verifique sua conexão.');
-    }
-    const problema = resposta.error as Partial<Problema> | null;
-    const mensagem = problema?.detail ?? 'Ocorreu um erro inesperado. Tente novamente.';
+    const problema = ehProblema(resposta.error) ? resposta.error : null;
+    const padrao = MENSAGENS_POR_STATUS[resposta.status] ?? MENSAGEM_GENERICA;
+    // O `detail` da nossa API vem em português. Quando ele só repete o título HTTP
+    // (ex.: "Not Found" do Starlette), ou vem vazio, usamos a mensagem do status.
+    const detalheProprio =
+      problema && problema.detail.trim() !== '' && problema.detail !== problema.title;
+    const mensagem = detalheProprio ? problema.detail : padrao;
     return new ErroApi(resposta.status, mensagem, problema?.erros ?? []);
   }
+}
+
+function ehProblema(corpo: unknown): corpo is Problema {
+  return (
+    typeof corpo === 'object' && corpo !== null && typeof (corpo as Problema).detail === 'string'
+  );
 }
 
 type Parametros = Record<string, string | number | boolean>;

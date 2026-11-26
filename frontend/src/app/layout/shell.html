@@ -1,8 +1,16 @@
-<a class="pular-para-conteudo" href="#conteudo">Pular para o conteúdo</a>
+<button type="button" class="pular-para-conteudo" (click)="pularParaConteudo()">
+  Pular para o conteúdo
+</button>
 
 <mat-toolbar class="barra" role="banner">
   @if (celular()) {
-    <button mat-icon-button (click)="menu.toggle()" aria-label="Abrir ou fechar o menu">
+    <button
+      mat-icon-button
+      (click)="menu.toggle()"
+      aria-label="Menu principal"
+      aria-controls="menu-principal"
+      [attr.aria-expanded]="menu.opened"
+    >
       <mat-icon>menu</mat-icon>
     </button>
   }
@@ -20,6 +28,7 @@
 <mat-sidenav-container class="container">
   <mat-sidenav
     #menu
+    id="menu-principal"
     [mode]="celular() ? 'over' : 'side'"
     [opened]="!celular()"
     class="menu"
@@ -45,7 +54,7 @@
   </mat-sidenav>
 
   <mat-sidenav-content>
-    <main id="conteudo" class="conteudo" tabindex="-1">
+    <main #conteudo id="conteudo" class="conteudo" tabindex="-1">
       <router-outlet />
     </main>
   </mat-sidenav-content>

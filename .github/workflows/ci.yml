@@ -51,7 +51,8 @@ jobs:
           python-version: "3.12"
       - uses: pre-commit/action@v3.0.1
         env:
-          SKIP: eslint,conventional-pre-commit
+          # Hooks que dependem do node_modules do frontend rodam no job do frontend.
+          SKIP: eslint,prettier,conventional-pre-commit
 
   backend:
     name: Backend (lint, tipos e testes)
@@ -143,6 +144,8 @@ jobs:
         run: npm ci
       - if: steps.existe.outputs.sim == 'true'
         run: npm run lint
+      - if: steps.existe.outputs.sim == 'true'
+        run: npx prettier --check src
       - if: steps.existe.outputs.sim == 'true'
         run: npm test -- --watch=false
       - if: steps.existe.outputs.sim == 'true'

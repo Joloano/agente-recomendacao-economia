@@ -1,5 +1,5 @@
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Component, computed, inject } from '@angular/core';
+import { Component, ElementRef, computed, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -30,15 +30,22 @@ import { ITENS_NAVEGACAO } from './navegacao';
 })
 export class Shell {
   private readonly sessao = inject(SessaoService);
+  private readonly conteudo = viewChild.required<ElementRef<HTMLElement>>('conteudo');
 
   readonly usuario = this.sessao.usuario;
+  // O BreakpointObserver emite na inscrição, então o valor inicial já é o real.
   readonly celular = toSignal(
     inject(BreakpointObserver)
       .observe(Breakpoints.Handset)
       .pipe(map((resultado) => resultado.matches)),
-    { initialValue: false },
+    { requireSync: true },
   );
   readonly itens = computed(() =>
     ITENS_NAVEGACAO.filter((item) => !item.soAdmin || this.sessao.ehAdmin()),
   );
+
+  /** Leva o foco ao conteúdo sem mudar a URL (um href="#..." recarregaria a SPA por causa do <base>). */
+  pularParaConteudo(): void {
+    this.conteudo().nativeElement.focus();
+  }
 }

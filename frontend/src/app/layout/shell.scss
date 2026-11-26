@@ -55,6 +55,9 @@
 .pular-para-conteudo {
   position: absolute;
   left: -999px;
+  border: 0;
+  font: var(--mat-sys-label-large);
+  cursor: pointer;
 
   &:focus {
     left: 1rem;

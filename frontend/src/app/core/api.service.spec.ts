@@ -58,12 +58,45 @@ describe('ApiService', () => {
     expect(erro.message).toContain('Não foi possível conectar');
   });
 
-  it('usa mensagem genérica quando a resposta não segue o RFC 7807', async () => {
+  it.each([
+    [
+      'texto HTML de um proxy',
+      '<html>502</html>',
+      502,
+      'Ocorreu um erro inesperado. Tente novamente.',
+    ],
+    ['corpo vazio', null, 404, 'Não encontramos o que você procurou.'],
+    [
+      'detail que repete o título em inglês',
+      { status: 404, title: 'Not Found', detail: 'Not Found' },
+      404,
+      'Não encontramos o que você procurou.',
+    ],
+    [
+      'detail vazio',
+      { status: 409, title: 'Conflict', detail: ' ' },
+      409,
+      'Esta ação conflita com o estado atual. Atualize a página e tente de novo.',
+    ],
+    [
+      '401 sem detalhe próprio',
+      { status: 401, title: 'Unauthorized', detail: 'Unauthorized' },
+      401,
+      'Sua sessão expirou. Entre novamente.',
+    ],
+    [
+      '401 com detalhe da API (login)',
+      { status: 401, title: 'Unauthorized', detail: 'E-mail ou senha incorretos.' },
+      401,
+      'E-mail ou senha incorretos.',
+    ],
+  ])('traduz erro com %s', async (_caso, corpo, status, mensagem) => {
     const resposta = firstValueFrom(api.put('x', {}));
 
-    http.expectOne('/api/v1/x').flush('erro', { status: 500, statusText: 'Server Error' });
+    http.expectOne('/api/v1/x').flush(corpo, { status, statusText: 'Erro' });
 
     const erro = (await resposta.catch((e: unknown) => e)) as ErroApi;
-    expect(erro.message).toBe('Ocorreu um erro inesperado. Tente novamente.');
+    expect(erro.status).toBe(status);
+    expect(erro.message).toBe(mensagem);
   });
 });
