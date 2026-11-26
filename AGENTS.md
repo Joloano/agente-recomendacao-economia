@@ -16,9 +16,9 @@ com o feedback (aceitar/rejeitar), atualizando o consumo estimado.
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic, Pydantic v2 |
+| Backend | Python 3.12 (mínimo 3.11), FastAPI, SQLAlchemy 2, Alembic, Pydantic v2 |
 | Banco | PostgreSQL 16 |
-| Autenticação | JWT (OAuth2 password flow), senhas com bcrypt/argon2 |
+| Autenticação | JWT com PyJWT (OAuth2 password flow), senhas com argon2 |
 | Frontend | Angular (standalone components), Angular Material |
 | Testes | pytest + httpx (backend), Jasmine/Karma ou Jest (frontend) |
 | Qualidade | ruff (lint + format), mypy, ESLint, Prettier |
