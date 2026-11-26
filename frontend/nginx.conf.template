@@ -1,0 +1,72 @@
+# Servidor da interface. Só ${API_UPSTREAM} é substituído ao subir (NGINX_ENVSUBST_FILTER).
+
+# Protocolo original: repassa o https do proxy TLS da VPS (#63); sem proxy, usa o do nginx.
+map $http_x_forwarded_proto $protocolo_original {
+    default $scheme;
+    https   https;
+}
+
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    server_tokens off;
+    # Redirects relativos: sem vazar a porta interna (8080) nem o nome do container.
+    absolute_redirect off;
+    client_max_body_size 5m;
+
+    # DNS interno do Docker: o IP da API é resolvido de novo se o container for recriado.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # Cabeçalhos de segurança em nginx-seguranca.conf (o proxy da VPS pode reforçá-los, #63).
+    include /etc/nginx/snippets/seguranca.conf;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # Liveness do próprio nginx (não depende da API).
+    location = /saude {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # API: mesma origem para o navegador, sem CORS. "^~" impede que as regras de arquivos
+    # estáticos abaixo capturem rotas da API terminadas em .png, .js etc.
+    location ^~ /api/ {
+        # Variável + resolver: resolve "api" a cada 10 s. Sem URI no proxy_pass, o caminho
+        # original (/api/...) é repassado inteiro; API_UPSTREAM não deve terminar com "/".
+        set $api_upstream ${API_UPSTREAM};
+        proxy_pass $api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        # Só o IP que chegou ao nginx: um X-Forwarded-For enviado pelo cliente é descartado.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $protocolo_original;
+        proxy_read_timeout 60s;
+    }
+
+    # Arquivos com hash no nome (gerados pelo build): cache imutável de 1 ano.
+    location ~* "-[A-Z0-9]{8}\.(?:js|css)$" {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        include /etc/nginx/snippets/seguranca.conf;
+        try_files $uri =404;
+    }
+
+    location ^~ /media/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        include /etc/nginx/snippets/seguranca.conf;
+        try_files $uri =404;
+    }
+
+    # Demais arquivos (index.html, favicon...) e rotas da SPA: sempre revalidados.
+    location / {
+        try_files $uri /index.html;
+        add_header Cache-Control "no-cache" always;
+        include /etc/nginx/snippets/seguranca.conf;
+    }
+}

@@ -1,0 +1,115 @@
+# Pilha completa: banco, migração, API e interface.
+#   cp .env.example .env && docker compose up --build
+# Em desenvolvimento, o docker-compose.override.yml (carregado automaticamente) expõe as portas
+# da API e do banco, liga o hot reload da API e adiciona o Mailpit. Em produção, use só este
+# arquivo: docker compose -f docker-compose.yml up -d
+
+name: agente-economia
+
+x-endurecido: &endurecido
+  # Sem escalar privilégios e sem capacidades do kernel além das necessárias.
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+# Cada serviço recebe só as variáveis de que precisa (nada de repassar o .env inteiro).
+x-banco: &variaveis-banco
+  AMBIENTE: ${AMBIENTE:-dev}
+  POSTGRES_HOST: db
+  POSTGRES_PORTA: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+  POSTGRES_USUARIO: ${POSTGRES_USUARIO:?defina POSTGRES_USUARIO no .env}
+  POSTGRES_SENHA: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no .env}
+
+services:
+  db:
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+      POSTGRES_USER: ${POSTGRES_USUARIO:?defina POSTGRES_USUARIO no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no .env}
+    volumes:
+      - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+    # O entrypoint do Postgres precisa trocar de usuário e ajustar donos de arquivos.
+    cap_drop: ["ALL"]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    restart: unless-stopped
+    networks: [interna]
+
+  # Aplica as migrações uma vez, antes da API (a API não migra ao subir).
+  migrar:
+    <<: *endurecido
+    build: ./backend
+    command: ["migrar"]
+    environment:
+      <<: *variaveis-banco
+    read_only: true
+    tmpfs: [/tmp]
+    restart: "no"
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [interna]
+
+  api:
+    <<: *endurecido
+    build: ./backend
+    environment:
+      <<: *variaveis-banco
+      NOME_APP: ${NOME_APP:-Agente Recomendador de Energia e Água}
+      LOG_NIVEL: ${LOG_NIVEL:-INFO}
+      CORS_ORIGENS: ${CORS_ORIGENS:-http://localhost:4200}
+      URL_FRONTEND: ${URL_FRONTEND:-http://localhost:4200}
+      JWT_SEGREDO: ${JWT_SEGREDO:?defina JWT_SEGREDO no .env}
+      JWT_ALGORITMO: ${JWT_ALGORITMO:-HS256}
+      JWT_EXPIRACAO_MINUTOS: ${JWT_EXPIRACAO_MINUTOS:-30}
+      EMAIL_REMETENTE: ${EMAIL_REMETENTE:-nao-responda@exemplo.com}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORTA: ${SMTP_PORTA:-1025}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_SENHA: ${SMTP_SENHA:-}
+      SMTP_TLS: ${SMTP_TLS:-false}
+      MIGRAR_AO_SUBIR: "false"
+      WORKERS: ${WORKERS:-2}
+      TEMPO_DESLIGAMENTO_S: ${TEMPO_DESLIGAMENTO_S:-30}
+      # Só o nginx do serviço web (nesta sub-rede) pode enviar X-Forwarded-*.
+      IPS_PROXY_CONFIAVEIS: ${SUBREDE_INTERNA:-172.29.213.0/24}
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      migrar: { condition: service_completed_successfully }
+    networks: [interna]
+
+  web:
+    <<: *endurecido
+    build: ./frontend
+    environment:
+      API_UPSTREAM: http://api:8000
+    ports:
+      - "${PORTA_WEB:-4200}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=101,gid=101
+      - /etc/nginx/conf.d:uid=101,gid=101
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [interna]
+
+networks:
+  interna:
+    ipam:
+      config:
+        # Fixa para a API saber em quem confiar; mude no .env se colidir com outra rede.
+        - subnet: ${SUBREDE_INTERNA:-172.29.213.0/24}
+
+volumes:
+  dados-postgres:

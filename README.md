@@ -72,10 +72,20 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Frontend: http://localhost:4200
-- API / Swagger: http://localhost:8000/docs
+| Endereço | O quê |
+|---|---|
+| http://localhost:4200 | Interface (e a API em `/api`, pelo nginx) |
+| http://localhost:8000/docs | Swagger da API (só em desenvolvimento) |
+| http://localhost:8025 | Mailpit: e-mails enviados em desenvolvimento |
+| http://localhost:5050 | pgAdmin (opcional: `docker compose --profile dev up`) |
 
-O admin inicial é criado a partir das variáveis `ADMIN_EMAIL` e `ADMIN_SENHA` do `.env`.
+- As migrações rodam no serviço `migrar` antes da API subir.
+- O `docker-compose.override.yml` é carregado automaticamente em desenvolvimento. Ele liga o hot
+  reload da API e publica as portas da API e do banco.
+- Em produção, use só o arquivo principal: `docker compose -f docker-compose.yml up -d`.
+- Para o hot reload do frontend, rode `npm start` em `frontend/`.
+- Dados iniciais (seed, disponível com a #27): `docker compose run --rm api python -m app.seed`.
+- O admin inicial é criado a partir das variáveis `ADMIN_EMAIL` e `ADMIN_SENHA` do `.env`.
 
 ## Versão original (terminal)
 

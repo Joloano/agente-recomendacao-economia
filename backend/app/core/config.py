@@ -57,18 +57,13 @@ class Ambiente(StrEnum):
     PRODUCAO = "producao"
 
 
-class Configuracoes(BaseSettings):
+class ConfiguracoesBanco(BaseSettings):
+    """Só o acesso ao banco: é o que o Alembic e o serviço `migrar` recebem (menor privilégio)."""
+
     model_config = SettingsConfigDict(
         env_file=(RAIZ_REPOSITORIO / ".env", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
-    )
-
-    ambiente: Ambiente = Ambiente.DEV
-    nome_app: str = "Agente Recomendador de Energia e Água"
-    log_nivel: str = "INFO"
-    cors_origens: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:4200"]
     )
 
     postgres_host: str = "localhost"
@@ -77,6 +72,29 @@ class Configuracoes(BaseSettings):
     postgres_usuario: str = "agente"
     postgres_senha: SecretStr = SecretStr("troque-esta-senha")
     postgres_timeout_conexao_s: int = Field(default=5, gt=0)
+
+    @property
+    def url_banco(self) -> URL:
+        # URL.create escapa a senha e a esconde em logs (repr mostra ***).
+        return URL.create(
+            "postgresql+psycopg",
+            username=self.postgres_usuario,
+            password=self.postgres_senha.get_secret_value(),
+            host=self.postgres_host,
+            port=self.postgres_porta,
+            database=self.postgres_db,
+        )
+
+
+class Configuracoes(ConfiguracoesBanco):
+    """Configuração completa da API."""
+
+    ambiente: Ambiente = Ambiente.DEV
+    nome_app: str = "Agente Recomendador de Energia e Água"
+    log_nivel: str = "INFO"
+    cors_origens: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:4200"]
+    )
 
     jwt_segredo: SecretStr = SecretStr("troque-por-um-segredo-longo-e-aleatorio")
     jwt_algoritmo: str = "HS256"
@@ -109,18 +127,6 @@ class Configuracoes(BaseSettings):
                     "sem caminho nem barra final."
                 )
         return valor
-
-    @property
-    def url_banco(self) -> URL:
-        # URL.create escapa a senha e a esconde em logs (repr mostra ***).
-        return URL.create(
-            "postgresql+psycopg",
-            username=self.postgres_usuario,
-            password=self.postgres_senha.get_secret_value(),
-            host=self.postgres_host,
-            port=self.postgres_porta,
-            database=self.postgres_db,
-        )
 
     @property
     def eh_producao(self) -> bool:

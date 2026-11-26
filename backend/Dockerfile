@@ -1,11 +1,10 @@
 # syntax=docker/dockerfile:1.7
 
-# Base fixada por digest (build reproduzível). O Dependabot atualiza o digest e o lockfile;
-# o rebuild traz as correções de segurança do sistema operacional.
-ARG IMAGEM_BASE=python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b
+# Base fixada por digest (build reproduzível). O Dependabot atualiza o digest e o lockfile
+# (por isso a imagem fica literal no FROM); o rebuild traz correções de segurança do SO.
 
 # ---------- Estágio 1: dependências ----------
-FROM ${IMAGEM_BASE} AS dependencias
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS dependencias
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -20,7 +19,7 @@ RUN pip install --require-hashes --no-deps -r /tmp/requirements-lock.txt \
     && pip uninstall -y pip
 
 # ---------- Estágio 2: imagem final ----------
-FROM ${IMAGEM_BASE} AS final
+FROM python:3.12-slim@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS final
 
 LABEL org.opencontainers.image.title="agente-recomendador-api" \
       org.opencontainers.image.description="API REST do agente recomendador de energia e água" \

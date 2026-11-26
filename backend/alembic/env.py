@@ -5,7 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-from app.core.config import obter_configuracoes
+from app.core.config import ConfiguracoesBanco
 from app.modelos import Base
 
 config = context.config
@@ -16,7 +16,8 @@ if config.config_file_name is not None:
 url_externa = context.get_x_argument(as_dictionary=True).get("url") or config.get_main_option(
     "sqlalchemy.url"
 )
-url = url_externa or obter_configuracoes().url_banco.render_as_string(hide_password=False)
+# Só as variáveis do banco: migrar não precisa (nem recebe) segredos da API.
+url = url_externa or ConfiguracoesBanco().url_banco.render_as_string(hide_password=False)
 config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 target_metadata = Base.metadata
