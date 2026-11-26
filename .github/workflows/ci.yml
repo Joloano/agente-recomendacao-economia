@@ -22,7 +22,7 @@ jobs:
       frontend: ${{ steps.filtro.outputs.frontend }}
       docker: ${{ steps.filtro.outputs.docker }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filtro
         with:
@@ -45,7 +45,7 @@ jobs:
     name: Verificações gerais (pre-commit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -83,7 +83,7 @@ jobs:
       POSTGRES_SENHA: agente
       TESTE_BANCO_URL: postgresql+psycopg://agente:agente@localhost:5432/agente_teste
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verificar projeto Python
         id: existe
         run: test -f pyproject.toml && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
@@ -130,7 +130,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verificar projeto Angular
         id: existe
         run: test -f package.json && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
@@ -161,7 +161,7 @@ jobs:
       matrix:
         servico: [backend, frontend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verificar Dockerfile
         id: existe
         run: test -f ${{ matrix.servico }}/Dockerfile && echo "sim=true" >> "$GITHUB_OUTPUT" || echo "sim=false" >> "$GITHUB_OUTPUT"
