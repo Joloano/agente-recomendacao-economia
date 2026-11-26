@@ -334,12 +334,14 @@ def test_trocar_email_exige_a_senha_atual(cliente: TestClient, sessao: Session) 
     senha_errada = cliente.patch(
         url, json={"email": "nova@exemplo.com", "senha_atual": "errada errada"}, headers=h
     )
-    em_uso = cliente.patch(url, json={"email": "bia@exemplo.com", "senha_atual": SENHA}, headers=h)
     certo = cliente.patch(url, json={"email": "nova@exemplo.com", "senha_atual": SENHA}, headers=h)
+    # Por último: o 409 desfaz a transação de teste (na aplicação, cada requisição tem a sua).
+    em_uso = cliente.patch(url, json={"email": "bia@exemplo.com", "senha_atual": SENHA}, headers=h)
 
-    assert (sem_senha.status_code, senha_errada.status_code, em_uso.status_code) == (401, 401, 409)
+    assert (sem_senha.status_code, senha_errada.status_code) == (401, 401)
     assert certo.status_code == 200
     assert certo.json()["email"] == "nova@exemplo.com"
+    assert em_uso.status_code == 409
 
 
 def test_cliente_nao_se_promove_pelo_perfil(cliente: TestClient, sessao: Session) -> None:
