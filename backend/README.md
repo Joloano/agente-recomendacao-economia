@@ -15,6 +15,26 @@ uvicorn app.main:app --reload
 
 Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/health
 
+## Docker
+
+```bash
+docker build -t agente-api backend/
+docker run --env-file .env -p 8000:8000 agente-api          # migra e sobe a API
+docker run --env-file .env agente-api migrar                # só migra
+docker run --env-file .env agente-api python -m app.seed    # qualquer outro comando
+```
+
+A imagem é multi-stage, com base fixada por digest e dependências instaladas de
+`requirements-lock.txt` com hashes. Roda como usuário sem privilégios (uid 1001), com o código só
+leitura e sem pip na imagem final. Pode rodar com `--read-only --tmpfs /tmp`.
+
+- `HEALTHCHECK` usa `/api/v1/health/live` (não depende do banco); `/api/v1/health` é a readiness.
+- As migrações rodam ao subir (`MIGRAR_AO_SUBIR`); várias réplicas podem subir juntas, pois um
+  advisory lock do PostgreSQL deixa só uma migrar.
+
+Ao mudar dependências no `pyproject.toml`, regenere o lockfile com o comando do cabeçalho de
+`requirements-lock.txt` (o CI confere).
+
 ## Banco e migrações
 
 ```bash

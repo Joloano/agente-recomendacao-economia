@@ -1,0 +1,25 @@
+# Apenas o necessário para a imagem: pyproject, alembic e app/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+tests/
+.env
+.env.*
+Dockerfile
+.dockerignore
+README.md
+# Defensivo: nunca enviar chaves, histórico ou configurações locais ao build
+.git
+*.pem
+*.key
+*.log
+.idea/
+.vscode/
+docker-compose*.yml
