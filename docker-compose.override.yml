@@ -18,6 +18,8 @@ services:
       - --port=8000
       - --reload
       - --reload-dir=/app/app
+      - --proxy-headers
+      - --forwarded-allow-ips=${SUBREDE_INTERNA:-172.29.213.0/24}
     volumes:
       - ./backend/app:/app/app:ro
     environment:
@@ -29,18 +31,19 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27@sha256:e22dce5b36f93c77082e204a3942fb6b283b7896e057458400a4c88344c3df68
     ports:
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:${PORTA_MAILPIT:-8025}:8025"
     networks: [interna]
 
+  # Modo desktop (sem login próprio): por isso só escuta em 127.0.0.1.
   pgadmin:
-    image: dpage/pgadmin4:9
+    image: dpage/pgadmin4:9@sha256:3591b3d02910dcd817dec6fcaa681c278ba6966945283dd0ea0042731c330c83
     profiles: [dev]
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${ADMIN_EMAIL:-admin@exemplo.com}
-      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_SENHA}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-dev@exemplo.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_SENHA:-somente-local}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:
-      - "127.0.0.1:5050:80"
+      - "127.0.0.1:${PORTA_PGADMIN:-5050}:80"
     depends_on:
       db: { condition: service_healthy }
     networks: [interna]

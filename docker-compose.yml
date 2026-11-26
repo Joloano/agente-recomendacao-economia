@@ -15,6 +15,15 @@ x-endurecido: &endurecido
     driver: json-file
     options: { max-size: "10m", max-file: "3" }
 
+# Cada serviço recebe só as variáveis de que precisa (nada de repassar o .env inteiro).
+x-banco: &variaveis-banco
+  AMBIENTE: ${AMBIENTE:-dev}
+  POSTGRES_HOST: db
+  POSTGRES_PORTA: "5432"
+  POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+  POSTGRES_USUARIO: ${POSTGRES_USUARIO:?defina POSTGRES_USUARIO no .env}
+  POSTGRES_SENHA: ${POSTGRES_SENHA:?defina POSTGRES_SENHA no .env}
+
 services:
   db:
     image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
@@ -30,6 +39,9 @@ services:
       timeout: 5s
       retries: 10
     security_opt: ["no-new-privileges:true"]
+    # O entrypoint do Postgres precisa trocar de usuário e ajustar donos de arquivos.
+    cap_drop: ["ALL"]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
     restart: unless-stopped
     networks: [interna]
 
@@ -37,28 +49,40 @@ services:
   migrar:
     <<: *endurecido
     build: ./backend
-    image: agente-economia-api:local
     command: ["migrar"]
-    env_file: .env
     environment:
-      POSTGRES_HOST: db
+      <<: *variaveis-banco
     read_only: true
     tmpfs: [/tmp]
     restart: "no"
+    healthcheck: { disable: true }
     depends_on:
       db: { condition: service_healthy }
     networks: [interna]
 
   api:
     <<: *endurecido
-    image: agente-economia-api:local
-    env_file: .env
+    build: ./backend
     environment:
-      POSTGRES_HOST: db
+      <<: *variaveis-banco
+      NOME_APP: ${NOME_APP:-Agente Recomendador de Energia e Água}
+      LOG_NIVEL: ${LOG_NIVEL:-INFO}
+      CORS_ORIGENS: ${CORS_ORIGENS:-http://localhost:4200}
+      URL_FRONTEND: ${URL_FRONTEND:-http://localhost:4200}
+      JWT_SEGREDO: ${JWT_SEGREDO:?defina JWT_SEGREDO no .env}
+      JWT_ALGORITMO: ${JWT_ALGORITMO:-HS256}
+      JWT_EXPIRACAO_MINUTOS: ${JWT_EXPIRACAO_MINUTOS:-30}
+      EMAIL_REMETENTE: ${EMAIL_REMETENTE:-nao-responda@exemplo.com}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORTA: ${SMTP_PORTA:-1025}
+      SMTP_USUARIO: ${SMTP_USUARIO:-}
+      SMTP_SENHA: ${SMTP_SENHA:-}
+      SMTP_TLS: ${SMTP_TLS:-false}
       MIGRAR_AO_SUBIR: "false"
-      # A API não é publicada para fora: só o nginx do serviço web (rede privada do Docker)
-      # chega a ela, então as faixas privadas podem enviar X-Forwarded-*.
-      IPS_PROXY_CONFIAVEIS: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+      WORKERS: ${WORKERS:-2}
+      TEMPO_DESLIGAMENTO_S: ${TEMPO_DESLIGAMENTO_S:-30}
+      # Só o nginx do serviço web (nesta sub-rede) pode enviar X-Forwarded-*.
+      IPS_PROXY_CONFIAVEIS: ${SUBREDE_INTERNA:-172.29.213.0/24}
     read_only: true
     tmpfs: [/tmp]
     depends_on:
@@ -68,7 +92,6 @@ services:
   web:
     <<: *endurecido
     build: ./frontend
-    image: agente-economia-web:local
     environment:
       API_UPSTREAM: http://api:8000
     ports:
@@ -83,6 +106,10 @@ services:
 
 networks:
   interna:
+    ipam:
+      config:
+        # Fixa para a API saber em quem confiar; mude no .env se colidir com outra rede.
+        - subnet: ${SUBREDE_INTERNA:-172.29.213.0/24}
 
 volumes:
   dados-postgres:

@@ -13,6 +13,7 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: [minor, patch]
   # Imagens do frontend (Node e nginx) e do compose (Postgres, Mailpit)
   - package-ecosystem: docker
     directory: /frontend
@@ -28,10 +29,13 @@ updates:
     schedule: { interval: weekly }
     commit-message: { prefix: "build" }
     groups:
+      # Majors do Angular exigem `ng update`: ficam em PR próprio, fora dos grupos.
       angular:
         patterns: ["@angular/*", "@angular-devkit/*", "angular-eslint", "typescript"]
+        update-types: [minor, patch]
       demais:
         patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
