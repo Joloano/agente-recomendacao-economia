@@ -24,6 +24,7 @@ PRODUCAO_VALIDA: dict[str, Any] = {
 
 
 def _config(**valores: Any) -> Configuracoes:
+    valores.setdefault("ambiente", Ambiente.TESTE)
     return Configuracoes(_env_file=None, **valores)
 
 
@@ -100,3 +101,13 @@ def test_producao_exige_variaveis_explicitas(ambiente: Ambiente) -> None:
 def test_producao_recusa_valores_fracos(campo: str, valor: str, mensagem: str) -> None:
     with pytest.raises(ValidationError, match=mensagem):
         _config(**{**PRODUCAO_VALIDA, campo: valor})
+
+
+def test_sem_ambiente_definido_valem_as_regras_de_producao() -> None:
+    with pytest.raises(ValidationError, match="Configuração inválida para produção"):
+        Configuracoes(_env_file=None)
+
+
+def test_algoritmo_do_jwt_so_aceita_hmac() -> None:
+    with pytest.raises(ValidationError, match="jwt_algoritmo"):
+        _config(jwt_algoritmo="none")

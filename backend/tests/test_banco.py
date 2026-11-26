@@ -3,11 +3,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.core import banco
-from app.core.config import Configuracoes
+from app.core.config import Ambiente, Configuracoes
 
 
 def test_engine_usa_driver_psycopg_e_pre_ping() -> None:
-    engine = banco.criar_engine(Configuracoes(_env_file=None, postgres_timeout_conexao_s=3))
+    config = Configuracoes(_env_file=None, ambiente=Ambiente.TESTE, postgres_timeout_conexao_s=3)
+    engine = banco.criar_engine(config)
 
     assert engine.url.drivername == "postgresql+psycopg"
     assert engine.pool._pre_ping
@@ -26,6 +27,7 @@ def test_obter_sessao_abre_e_fecha_uma_sessao(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_fabrica_sessao_usa_a_configuracao(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AMBIENTE", "teste")
     monkeypatch.setenv("POSTGRES_HOST", "banco-de-teste")
     banco.fabrica_sessao.cache_clear()
 

@@ -10,6 +10,10 @@ services:
     ports:
       - "127.0.0.1:${PORTA_DB:-55432}:5432"
 
+  migrar:
+    environment:
+      AMBIENTE: ${AMBIENTE:-dev}
+
   api:
     command:
       - uvicorn
@@ -23,6 +27,7 @@ services:
     volumes:
       - ./backend/app:/app/app:ro
     environment:
+      AMBIENTE: ${AMBIENTE:-dev}
       SMTP_HOST: mailpit
       SMTP_PORTA: "1025"
       SMTP_SEGURANCA: nenhuma

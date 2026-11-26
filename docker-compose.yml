@@ -17,7 +17,8 @@ x-endurecido: &endurecido
 
 # Cada serviço recebe só as variáveis de que precisa (nada de repassar o .env inteiro).
 x-banco: &variaveis-banco
-  AMBIENTE: ${AMBIENTE:-dev}
+  # Seguro por padrão: sem AMBIENTE, valem as regras de produção (o override usa dev).
+  AMBIENTE: ${AMBIENTE:-producao}
   POSTGRES_HOST: db
   POSTGRES_PORTA: "5432"
   POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
