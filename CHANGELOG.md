@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
+- Banco PostgreSQL: modelos SQLAlchemy 2 (usuário, residência, preferência, categoria, equipamento, simulação, recomendação e feedback) com CHECKs de escalas, medida conforme o recurso e chaves estrangeiras indexadas; Alembic com migração inicial e testes de integração (upgrade, downgrade, sincronia modelo × migração e constraints).
 - Núcleo do agente em Python puro (`app/agente/`) com Facade, Strategy, Template Method, Factory Method e Chain of Responsibility; valores em `Decimal`, explicação do motivo de inelegibilidade e contribuição de cada critério; testes de regressão que reproduzem o agente original em R01–R10.
 - Documentação de padrões de projeto, ADR 0001 (arquitetura em camadas) e diagrama de classes do núcleo.
 - Pipeline de CI no GitHub Actions: pre-commit, backend (ruff, mypy, pytest com Postgres e cobertura), frontend (lint, testes e build) e build das imagens Docker, com filtro por pasta e job agregador `CI concluído`.

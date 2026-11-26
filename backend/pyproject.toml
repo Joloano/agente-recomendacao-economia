@@ -39,6 +39,10 @@ include = ["app*"]
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint.isort]
+# A pasta local alembic/ (migrações) não é o pacote; trate o alembic como dependência.
+known-third-party = ["alembic"]
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "S", "C4", "SIM", "RUF", "C901", "PL"]
 # N818: exceções têm nomes em português (ErroDominio, NaoEncontrado)
@@ -49,6 +53,7 @@ max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "PLR2004"]
+"alembic/versions/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

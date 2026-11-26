@@ -80,6 +80,7 @@ jobs:
       POSTGRES_DB: agente_teste
       POSTGRES_USUARIO: agente
       POSTGRES_SENHA: agente
+      TESTE_BANCO_URL: postgresql+psycopg://agente:agente@localhost:5432/agente_teste
     steps:
       - uses: actions/checkout@v4
       - name: Verificar projeto Python
