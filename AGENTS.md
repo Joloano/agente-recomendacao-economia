@@ -72,8 +72,11 @@ Cada recurso é uma `EstrategiaRecurso`; o núcleo do agente (`app/agente/`) é 
 ## Convenções
 
 - Código, nomes, mensagens e commits em **português**.
-- Uma issue por branch (`feat/<n>-descricao`, `fix/...`, `docs/...`); PR com `Closes #<n>`.
+- Uma issue por branch (`feat/<n>-descricao`, `fix/...`, `docs/...`); PR com `Closes #<n>` usando o template.
+- Commits e títulos de PR em [Conventional Commits](CONTRIBUTING.md#commits) (`feat(agente): adiciona ...`).
 - Commits pequenos e separados por parte (backend, frontend, infra, docs).
+- Siga a [Definição de Pronto](CONTRIBUTING.md#definição-de-pronto).
+- Sem atribuição de ferramentas de IA em commits, PRs ou issues.
 - Toda rota nova tem teste; toda regra do agente tem teste unitário.
 - Rotas de admin protegidas por `exigir_admin`; cliente só enxerga os próprios dados.
 - Segredos só em `.env` (nunca commitado); `.env.example` sempre atualizado.

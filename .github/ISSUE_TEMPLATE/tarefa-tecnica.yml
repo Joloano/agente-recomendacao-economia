@@ -1,0 +1,22 @@
+name: Tarefa técnica
+description: Refatoração, infraestrutura, dívida técnica ou atualização
+body:
+  - type: textarea
+    id: motivo
+    attributes:
+      label: Motivo
+      description: Por que esta tarefa é necessária agora?
+    validations:
+      required: true
+  - type: textarea
+    id: tarefas
+    attributes:
+      label: Tarefas
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: riscos
+    attributes:
+      label: Riscos e como reverter
