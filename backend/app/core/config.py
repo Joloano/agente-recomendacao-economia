@@ -7,7 +7,7 @@ ser definidas explicitamente e segredos fracos ou padrão impedem a aplicação 
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
 from pydantic import EmailStr, Field, SecretStr, field_validator, model_validator
@@ -105,12 +105,14 @@ class Configuracoes(ConfiguracoesBanco):
     admin_email: EmailStr = "admin@exemplo.com"
     admin_senha: SecretStr = SecretStr("troque-esta-senha-forte")
 
+    email_provedor: Literal["smtp", "memoria"] = "smtp"
     email_remetente: EmailStr = "nao-responda@exemplo.com"
     smtp_host: str = "localhost"
     smtp_porta: int = 1025
     smtp_usuario: str = ""
     smtp_senha: SecretStr = SecretStr("")
     smtp_tls: bool = False
+    smtp_timeout_s: int = Field(default=10, gt=0)
 
     url_frontend: str = "http://localhost:4200"
 

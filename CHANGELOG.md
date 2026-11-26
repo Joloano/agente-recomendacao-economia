@@ -9,6 +9,7 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 - Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
 
 ### Adicionado
+- Serviço de e-mail transacional (padrão Adapter): SMTP (inclusive relay de SES, Brevo e Resend) e envio em memória para testes; modelos HTML e texto em português (boas-vindas, verificação, recuperação de senha, alertas) com Jinja2 e escape automático; guia de SPF, DKIM e DMARC em `docs/email.md`.
 - Imagem Docker da interface: build do Angular em Node 24 e nginx sem root, com proxy de `/api` (DNS dinâmico, `X-Forwarded-*` à prova de falsificação), fallback da SPA, cabeçalhos de segurança (CSP só com `self`), gzip e cache imutável só para arquivos com hash.
 - `docker-compose.yml` com banco, migração única, API e web endurecidos (sem privilégios extras, só leitura, logs com rotação) e `docker-compose.override.yml` de desenvolvimento com hot reload da API, Mailpit e pgAdmin opcional.
 - Frontend Angular 22 com Angular Material 3: layout responsivo (barra superior, menu lateral que esconde itens de admin, atalho para o conteúdo), tema energia/água, `pt-BR`, `ApiService` que traduz erros RFC 7807, sessão com sinais, proxy de desenvolvimento, ESLint, Prettier e Vitest.

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block previa %}Sua conta está pronta. Veja como começar a economizar.{% endblock %}
+{% block conteudo %}
+<p>Olá, {{ nome }}!</p>
+<p>Sua conta no {{ nome_app }} está pronta. Em três passos você já recebe recomendações:</p>
+<ol>
+  <li>Cadastre sua residência e as metas de consumo.</li>
+  <li>Adicione os equipamentos de energia e de água.</li>
+  <li>Veja as recomendações e aceite as que fizerem sentido.</li>
+</ol>
+{% with link=url_frontend ~ "/inicio", rotulo="Começar agora" %}{% include "_botao.html" %}{% endwith %}
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block previa %}Confirme seu e-mail para ativar todos os recursos.{% endblock %}
+{% block conteudo %}
+<p>Olá, {{ nome }}!</p>
+<p>Confirme que este e-mail é seu clicando no botão abaixo.</p>
+{% with rotulo="Confirmar e-mail" %}{% include "_botao.html" %}{% endwith %}
+<p>O link vale por {{ validade_horas }} horas e só pode ser usado uma vez.</p>
+{% endblock %}

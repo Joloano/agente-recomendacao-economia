@@ -1,0 +1,6 @@
+Olá, {{ nome }}!
+
+Confirme que este e-mail é seu abrindo o endereço abaixo:
+{{ link }}
+
+O link vale por {{ validade_horas }} horas e só pode ser usado uma vez.
