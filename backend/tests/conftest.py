@@ -13,7 +13,10 @@ from app.fabrica import criar_app
 
 
 @pytest.fixture(autouse=True)
-def _limpar_cache_de_configuracao() -> Iterator[None]:
+def _isolar_configuracao(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Testes não dependem das variáveis de ambiente da máquina ou do CI."""
+    for campo in Configuracoes.model_fields:
+        monkeypatch.delenv(campo.upper(), raising=False)
     obter_configuracoes.cache_clear()
     yield
     obter_configuracoes.cache_clear()
