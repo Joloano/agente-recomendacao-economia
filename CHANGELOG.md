@@ -5,9 +5,13 @@ O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e 
 
 ## [Não lançado]
 
+### Alterado
+- Repositório reorganizado em monorepo: `backend/`, `frontend/`, `docs/` e `legado/` (agente de terminal original, agora executável de qualquer pasta).
+
 ### Adicionado
+- `.env.example` com todas as variáveis de ambiente.
 - Processo de contribuição: `CONTRIBUTING.md`, Definição de Pronto, templates de issue e PR, `CODEOWNERS`.
-- `pre-commit` com ruff, gitleaks mypy, prettier, eslint e validação de Conventional Commits; validação do título do PR no CI; merge somente por squash.
+- `pre-commit` com ruff, gitleaks, mypy, prettier, eslint e validação de Conventional Commits; validação do título do PR no CI; merge somente por squash.
 - `.gitattributes` e `.editorconfig` padronizando fim de linha e formatação.
 - Licença proprietária.
 - `AGENTS.md`, README do produto e diagramas ER e de classes.

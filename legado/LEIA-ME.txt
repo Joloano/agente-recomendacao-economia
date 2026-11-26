@@ -8,11 +8,12 @@ Vídeo de apresentação: https://youtu.be/SR8bxY2YyFs
 
 Requisito: Python 3.10 ou superior. Não é necessário instalar nenhuma biblioteca.
 
-Abra o terminal na pasta do projeto (a mesma do arquivo agente_energia.py) e execute:
+Abra o terminal na raiz do repositório e execute:
 
-    python agente_energia.py
+    python legado/agente_energia.py
 
-A pasta "dados" com o arquivo dataset_consumo_energia.csv deve estar junto do código.
+O arquivo é encontrado em dados/dataset_consumo_energia.csv, na raiz do repositório,
+de qualquer pasta em que o comando seja executado.
 
 Durante a execução:
 - digite o número da recomendação desejada (ou 0 para sair);
@@ -25,7 +26,7 @@ Ao final, é exibido um resumo com o consumo inicial, o consumo final e a econom
 
 A residência utilizada é a R02.
 Para executar com outra residência, basta alterar a constante RESIDENCIA_SELECIONADA,
-no início do arquivo agente_energia.py, para qualquer valor de R01 a R10.
+no início do arquivo legado/agente_energia.py, para qualquer valor de R01 a R10.
 Nenhuma outra alteração é necessária.
 
 

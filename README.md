@@ -5,7 +5,7 @@ consumo de **energia elétrica** e de **água** em residências. Nasceu como o T
 UFSM01280 – Agentes Inteligentes para Sistemas Web (UFSM, 2026/2) e está evoluindo para um produto completo.
 
 > 🚧 Em desenvolvimento. O planejamento está nas [issues](../../issues) e no [AGENTS.md](AGENTS.md).
-> A versão original de terminal continua disponível em `agente_energia.py`.
+> A versão original de terminal continua disponível em `legado/agente_energia.py`.
 
 ## Funcionalidades
 
@@ -78,7 +78,7 @@ O admin inicial é criado a partir das variáveis `ADMIN_EMAIL` e `ADMIN_SENHA` 
 ## Versão original (terminal)
 
 ```bash
-python agente_energia.py
+python legado/agente_energia.py
 ```
 
 Requer Python 3.10+, sem dependências. A residência é escolhida pela constante `RESIDENCIA_SELECIONADA` (R01 a R10).
