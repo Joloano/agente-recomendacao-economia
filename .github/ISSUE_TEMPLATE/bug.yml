@@ -1,0 +1,39 @@
+name: Bug
+description: Relatar um comportamento incorreto
+labels: ["bug"]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que era esperado?
+    validations:
+      required: true
+  - type: dropdown
+    id: ambiente
+    attributes:
+      label: Ambiente
+      options: [Local, Staging, Produção]
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou capturas de tela
+      description: Não cole senhas, tokens ou dados pessoais.
+      render: text
