@@ -271,3 +271,57 @@ def test_pedidos_de_troca_de_email_tem_limite(cliente: TestClient, ana: Usuario)
     respostas = [_pedir_troca(cliente, h, f"novo{i}@exemplo.com") for i in range(4)]
 
     assert respostas == [200, 200, 200, 429]
+
+
+def test_email_pendente_tomado_por_outra_conta_da_409_na_confirmacao(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
+) -> None:
+    h = _auth(cliente, ana.email)
+    _pedir_troca(cliente, h, "nova@exemplo.com")
+    token = _token(caixa, VERIFICACAO, "nova@exemplo.com")
+    sessao.add(Usuario(nome="Bia", email="nova@exemplo.com", senha_hash=gerar_hash(SENHA)))
+    sessao.flush()
+
+    resposta = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
+
+    assert resposta.status_code == 409
+    assert "outra conta" in resposta.json()["detail"]
+
+
+def test_redefinir_senha_descarta_troca_de_email_pendente(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
+) -> None:
+    h = _auth(cliente, ana.email)
+    _pedir_troca(cliente, h, "atacante@exemplo.com")
+    verificacao = _token(caixa, VERIFICACAO, "atacante@exemplo.com")
+    cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
+
+    assert _redefinir(cliente, _token(caixa, RECUPERACAO)) == 204
+    assert _confirmar(cliente, verificacao) == 422  # o link da troca caiu junto
+    perfil = cliente.get("/api/v1/auth/eu", headers=_auth(cliente, ana.email, NOVA)).json()
+    assert (perfil["email"], perfil["email_pendente"]) == ("ana@exemplo.com", None)
+
+
+def test_troca_de_email_pelo_admin_derruba_sessoes_e_links(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
+) -> None:
+    sessao.add(
+        Usuario(
+            nome="Chefe", email="chefe@exemplo.com", senha_hash=gerar_hash(SENHA), papel="admin"
+        )
+    )
+    sessao.flush()
+    sessao_da_ana = _auth(cliente, ana.email)
+    cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
+    recuperacao = _token(caixa, RECUPERACAO)
+
+    resposta = cliente.patch(
+        f"/api/v1/admin/usuarios/{ana.id}",
+        json={"email": "ana.nova@exemplo.com"},
+        headers=_auth(cliente, "chefe@exemplo.com"),
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["email_verificado_em"] is None
+    assert cliente.get("/api/v1/auth/eu", headers=sessao_da_ana).status_code == 401
+    assert _redefinir(cliente, recuperacao) == 422

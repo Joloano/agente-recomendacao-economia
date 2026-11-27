@@ -4,9 +4,10 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.erros import Conflito, DadosRecusados, NaoAutenticado, NaoEncontrado
 from app.core.seguranca import SenhaFraca, gerar_hash, validar_politica_senha, verificar_senha
@@ -125,8 +126,7 @@ class ServicoUsuarios:
             # os links antigos caem e as sessões do usuário são derrubadas.
             usuario.email_verificado_em = None
             usuario.email_pendente = None
-            usuario.versao_credenciais += 1
-            ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
+            self._revogar_credenciais(usuario)
         for campo, valor in dados.model_dump(exclude_unset=True).items():
             setattr(usuario, campo, valor)
         self._confirmar()
@@ -185,11 +185,12 @@ class ServicoUsuarios:
     def aplicar_email_pendente(self, usuario: Usuario) -> None:
         """O novo endereço confirmou: passa a valer, derruba as sessões e os links antigos."""
         assert usuario.email_pendente  # noqa: S101 - garantido por quem chama
+        # Revoga primeiro: o UPDATE da versão dispara um flush, e a troca de e-mail precisa
+        # chegar ao banco só no `_confirmar`, que transforma o conflito de e-mail em 409.
+        self._revogar_credenciais(usuario)
         usuario.email = usuario.email_pendente
         usuario.email_pendente = None
         usuario.email_verificado_em = datetime.now(UTC)
-        usuario.versao_credenciais += 1
-        ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
         self._confirmar()
 
     def marcar_email_verificado(self, usuario: Usuario, *, confirmar: bool = True) -> None:
@@ -206,8 +207,27 @@ class ServicoUsuarios:
         self.definir_senha(usuario, dados.nova_senha)
 
     def definir_senha(self, usuario: Usuario, nova_senha: str) -> None:
-        """Grava a senha, derruba as sessões abertas e invalida os links pendentes."""
+        """Grava a senha, derruba as sessões abertas e invalida os links pendentes.
+
+        Um pedido de troca de e-mail feito com a senha antiga também é descartado.
+        """
         usuario.senha_hash = gerar_hash(nova_senha)
-        usuario.versao_credenciais += 1
-        ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
+        usuario.email_pendente = None
+        self._revogar_credenciais(usuario)
         self._sessao.commit()
+
+    def _revogar_credenciais(self, usuario: Usuario) -> None:
+        """Sobe a versão no próprio banco (atômico) e invalida os links pendentes.
+
+        O UPDATE atômico evita que duas trocas simultâneas gravem a mesma versão. Ele também
+        trava a linha do usuário antes de mexer em token_conta, na mesma ordem do `emitir`
+        (usuário, depois tokens), o que evita deadlock entre os dois.
+        """
+        nova_versao = self._sessao.execute(
+            update(Usuario)
+            .where(Usuario.id == usuario.id)
+            .values(versao_credenciais=Usuario.versao_credenciais + 1)
+            .returning(Usuario.versao_credenciais)
+        ).scalar_one()
+        set_committed_value(usuario, "versao_credenciais", nova_versao)
+        ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
