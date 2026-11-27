@@ -1,0 +1,23 @@
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.campo {
+  width: 100%;
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sucesso {
+  color: var(--mat-sys-primary);
+}
+
+.erro {
+  color: var(--mat-sys-error);
+}
