@@ -28,6 +28,10 @@ Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/
 - JWT com algoritmo fixo, `iss`, `aud`, `exp` obrigatório e `jti`. O papel é lido do banco a cada
   requisição: desativar ou rebaixar alguém vale na hora.
 - Login inválido, e-mail inexistente e conta inativa dão a mesma resposta (401), com tempo parecido.
+- Limite de tentativas (429 + `Retry-After`): login com 5 por e-mail+IP, 30 por e-mail e 50 por IP
+  a cada 15 min; 10 cadastros por IP por hora. A tentativa é reservada antes do argon2 e a
+  contagem fica no banco (`tentativa_acesso`, só HMAC). Atrás de um proxy TLS, configure o
+  `real_ip` no nginx (#63) para o IP do cliente não virar o do proxy.
 - Nas rotas, use `UsuarioDep` (autenticado), `AdminDep` (só admin) e `garantir_acesso(usuario,
   dono_id, "Recurso")`. Cliente que tenta acessar dado de outra pessoa recebe **404**, para não
   revelar que o dado existe.

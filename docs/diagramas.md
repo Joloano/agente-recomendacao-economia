@@ -103,6 +103,10 @@ erDiagram
     }
 ```
 
+**Tabela auxiliar** (sem relacionamentos): `tentativa_acesso (id, acao, chave, momento)` guarda,
+por no máximo a janela do limite, um HMAC do e-mail ou do IP de cada tentativa de login ou cadastro
+(#137). Nunca guarda o valor em claro.
+
 **Integridade garantida pelo banco**
 
 - `equipamento (categoria_id, recurso) → categoria (id, recurso)`: a categoria é do mesmo recurso.

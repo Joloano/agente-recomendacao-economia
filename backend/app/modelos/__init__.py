@@ -5,6 +5,7 @@ from app.modelos.enums import Papel, RecursoSimulacao, StatusRecomendacao, Statu
 from app.modelos.equipamento import Categoria, Equipamento
 from app.modelos.residencia import Preferencia, Residencia
 from app.modelos.simulacao import Feedback, Recomendacao, Simulacao
+from app.modelos.tentativa import TentativaAcesso
 from app.modelos.usuario import Usuario
 
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     "Simulacao",
     "StatusRecomendacao",
     "StatusSimulacao",
+    "TentativaAcesso",
     "Usuario",
 ]
