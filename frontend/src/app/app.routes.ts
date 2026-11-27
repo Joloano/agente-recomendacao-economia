@@ -1,8 +1,34 @@
 import { Routes } from '@angular/router';
 
+import { Publico } from './layout/publico';
 import { Shell } from './layout/shell';
 
 export const routes: Routes = [
+  // Páginas abertas (sem login), abertas pelos links enviados por e-mail. Cada uma tem o
+  // próprio caminho com o layout público; um grupo sem caminho capturaria também a raiz "/".
+  ...(
+    [
+      [
+        'verificar-email',
+        'Confirmar e-mail',
+        () => import('./paginas/conta/verificar-email').then((m) => m.VerificarEmail),
+      ],
+      [
+        'esqueci-senha',
+        'Esqueci a senha',
+        () => import('./paginas/conta/esqueci-senha').then((m) => m.EsqueciSenha),
+      ],
+      [
+        'redefinir-senha',
+        'Nova senha',
+        () => import('./paginas/conta/redefinir-senha').then((m) => m.RedefinirSenha),
+      ],
+    ] as const
+  ).map(([path, titulo, loadComponent]) => ({
+    path,
+    component: Publico,
+    children: [{ path: '', title: `${titulo} · Agente de Economia`, loadComponent }],
+  })),
   {
     path: '',
     component: Shell,
