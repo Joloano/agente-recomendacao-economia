@@ -36,6 +36,23 @@ Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/
   dono_id, "Recurso")`. Cliente que tenta acessar dado de outra pessoa recebe **404**, para não
   revelar que o dado existe.
 
+## Verificação de e-mail e recuperação de senha
+
+| Rota | O quê |
+|---|---|
+| `POST /api/v1/auth/verificacao/solicitar` | Reenvia o link de confirmação (autenticado; 3 por hora) |
+| `POST /api/v1/auth/verificacao/confirmar` | Confirma o e-mail com `{token}` |
+| `POST /api/v1/auth/senha/esqueci` | Sempre 202 (não revela se o e-mail existe); 3 por e-mail e 20 por IP por hora |
+| `POST /api/v1/auth/senha/redefinir` | `{token, nova_senha}`: troca a senha e derruba as sessões abertas |
+
+- Tokens de 256 bits, de uso único, com validade de 24 h (verificação) e 30 min (recuperação).
+  Só o hash SHA-256 fica no banco, e um pedido novo invalida o link anterior.
+- O cadastro envia as boas-vindas e o link de confirmação. A troca de e-mail no perfil avisa o
+  endereço antigo e pede a confirmação do novo.
+- Trocar ou redefinir a senha grava `credenciais_alteradas_em`: tokens de acesso emitidos antes
+  disso recebem 401 ("Sua senha foi alterada").
+- Os e-mails saem em segundo plano (`BackgroundTasks`).
+
 ## Usuários
 
 | Rota | Quem | O quê |

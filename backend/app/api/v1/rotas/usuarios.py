@@ -1,9 +1,10 @@
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
-from app.api.dependencias import AdminDep, SessaoDep, UsuarioDep
+from app.api.dependencias import AdminDep, ConfigDep, SessaoDep, UsuarioDep
+from app.api.v1.rotas.conta import enviar_verificacao
 from app.esquemas.autenticacao import UsuarioSaida
 from app.esquemas.paginacao import Pagina, ParametrosPagina, parametros_pagina
 from app.esquemas.usuarios import (
@@ -12,6 +13,7 @@ from app.esquemas.usuarios import (
     UsuarioAtualizacaoAdmin,
     UsuarioCriacao,
 )
+from app.integracoes.email import ServicoEmail, obter_servico_email
 from app.modelos import Papel
 from app.servicos.usuarios import ServicoUsuarios
 
@@ -99,9 +101,27 @@ def meu_perfil(usuario: UsuarioDep) -> UsuarioSaida:
     },
 )
 def atualizar_meu_perfil(
-    dados: PerfilAtualizacao, usuario: UsuarioDep, sessao: SessaoDep
+    dados: PerfilAtualizacao,
+    usuario: UsuarioDep,
+    sessao: SessaoDep,
+    config: ConfigDep,
+    email: Annotated[ServicoEmail, Depends(obter_servico_email)],
+    tarefas: BackgroundTasks,
 ) -> UsuarioSaida:
-    return UsuarioSaida.model_validate(ServicoUsuarios(sessao).atualizar_perfil(usuario, dados))
+    email_antigo = usuario.email
+    usuario = ServicoUsuarios(sessao).atualizar_perfil(usuario, dados)
+    if usuario.email != email_antigo:
+        # Aviso no endereço antigo (se não foi o dono, ele percebe) e confirmação do novo.
+        aviso = email.alerta(
+            email_antigo,
+            usuario.nome,
+            "O e-mail da sua conta foi alterado",
+            "Se não foi você, redefina sua senha e fale com o suporte imediatamente.",
+            f"{config.url_frontend}/esqueci-senha",
+        )
+        tarefas.add_task(email.enviar, aviso)
+        enviar_verificacao(usuario, sessao, config, email, tarefas)
+    return UsuarioSaida.model_validate(usuario)
 
 
 @perfil.post(

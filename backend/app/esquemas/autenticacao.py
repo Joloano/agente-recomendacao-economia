@@ -67,6 +67,7 @@ class UsuarioSaida(BaseModel):
     email: str
     papel: Papel
     ativo: bool
+    email_verificado_em: datetime | None
     criado_em: datetime
 
 
@@ -74,3 +75,27 @@ class Token(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"  # noqa: S105 - tipo do token, não um segredo
     expira_em: datetime
+
+
+TokenTexto = Annotated[
+    str, StringConstraints(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+]
+
+
+class ConfirmacaoToken(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: TokenTexto
+
+
+class PedidoRecuperacao(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Email
+
+
+class RedefinicaoSenha(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: TokenTexto
+    nova_senha: SenhaTexto

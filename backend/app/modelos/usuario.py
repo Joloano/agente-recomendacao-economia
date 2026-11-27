@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, String, true
@@ -27,6 +28,9 @@ class Usuario(ComId, ComDatas, Base):
         tipo_enum(Papel, "papel"), default=Papel.CLIENTE, server_default=Papel.CLIENTE.value
     )
     ativo: Mapped[bool] = mapped_column(default=True, server_default=true())
+    email_verificado_em: Mapped[datetime | None]
+    # Troca/redefinição de senha: tokens de acesso emitidos antes deste momento deixam de valer.
+    credenciais_alteradas_em: Mapped[datetime | None]
 
     residencias: Mapped[list["Residencia"]] = relationship(
         back_populates="usuario", cascade="all, delete-orphan", passive_deletes=True

@@ -52,6 +52,13 @@ REGRAS: dict[str, tuple[Regra, ...]] = {
         Regra("ip", 50, timedelta(minutes=15)),
     ),
     "cadastro": (Regra("ip", 10, timedelta(hours=1)),),
+    # Pedidos que disparam e-mail: limite baixo por destinatário (evita usar o sistema para
+    # inundar a caixa de alguém) e um teto por IP.
+    "recuperacao_senha": (
+        Regra("email", 3, timedelta(hours=1)),
+        Regra("ip", 20, timedelta(hours=1)),
+    ),
+    "verificacao_email": (Regra("email", 3, timedelta(hours=1)),),
 }
 
 

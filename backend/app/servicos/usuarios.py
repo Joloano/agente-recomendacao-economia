@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -30,7 +31,7 @@ def _constraint_violada(erro: IntegrityError) -> str | None:
     return getattr(diagnostico, "constraint_name", None)
 
 
-def _validar_senha(senha: str, email: str) -> None:
+def validar_senha(senha: str, email: str) -> None:
     try:
         validar_politica_senha(senha, email)
     except SenhaFraca as erro:
@@ -55,7 +56,7 @@ class ServicoUsuarios:
         papel: Papel,
         mensagem_conflito: str = MENSAGEM_EMAIL_EM_USO,
     ) -> Usuario:
-        _validar_senha(senha, email)
+        validar_senha(senha, email)
         usuario = Usuario(nome=nome, email=email, senha_hash=gerar_hash(senha), papel=papel)
         self._sessao.add(usuario)
         self._confirmar(mensagem_conflito)
@@ -118,6 +119,8 @@ class ServicoUsuarios:
         if perde_admin:
             self._travar_admins_e_garantir_outro(usuario_id)
         usuario = self.obter(usuario_id)
+        if dados.email is not None and dados.email != usuario.email:
+            usuario.email_verificado_em = None  # o novo endereço precisa ser confirmado
         for campo, valor in dados.model_dump(exclude_unset=True).items():
             setattr(usuario, campo, valor)
         self._confirmar()
@@ -153,6 +156,8 @@ class ServicoUsuarios:
     def atualizar_perfil(self, usuario: Usuario, dados: PerfilAtualizacao) -> Usuario:
         mudancas = dados.model_dump(exclude_unset=True, exclude={"senha_atual"})
         troca_email = "email" in mudancas and mudancas["email"] != usuario.email
+        if troca_email:
+            mudancas["email_verificado_em"] = None  # o novo endereço precisa ser confirmado
         # Trocar o e-mail exige a senha: um token roubado não basta para tomar a conta.
         if troca_email and not (
             dados.senha_atual and verificar_senha(dados.senha_atual, usuario.senha_hash)
@@ -168,6 +173,11 @@ class ServicoUsuarios:
             raise SenhaAtualIncorreta("A senha atual não confere.")
         if verificar_senha(dados.nova_senha, usuario.senha_hash):
             raise SenhaRecusada("A nova senha precisa ser diferente da atual.")
-        _validar_senha(dados.nova_senha, usuario.email)
-        usuario.senha_hash = gerar_hash(dados.nova_senha)
+        validar_senha(dados.nova_senha, usuario.email)
+        self.definir_senha(usuario, dados.nova_senha)
+
+    def definir_senha(self, usuario: Usuario, nova_senha: str) -> None:
+        """Grava a senha e revoga todas as sessões abertas (tokens emitidos antes de agora)."""
+        usuario.senha_hash = gerar_hash(nova_senha)
+        usuario.credenciais_alteradas_em = datetime.now(UTC)
         self._sessao.commit()

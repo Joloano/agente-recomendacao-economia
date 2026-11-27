@@ -35,6 +35,10 @@ def usuario_atual(
     # O papel é lido do banco (não do token): rebaixar ou desativar vale na hora.
     if usuario is None or not usuario.ativo:
         raise TokenRecusado("Sua sessão expirou ou é inválida. Entre novamente.")
+    # Troca ou redefinição de senha derruba as sessões abertas antes dela.
+    alteracao = usuario.credenciais_alteradas_em
+    if alteracao is not None and dados.emitido_em < alteracao:
+        raise TokenRecusado("Sua senha foi alterada. Entre novamente.")
     return usuario
 
 

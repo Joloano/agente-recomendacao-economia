@@ -1,11 +1,13 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.dependencias import ConfigDep, SessaoDep, UsuarioDep
+from app.api.v1.rotas.conta import enviar_verificacao
 from app.core.seguranca import criar_token_acesso
 from app.esquemas.autenticacao import RegistroEntrada, Token, UsuarioSaida
+from app.integracoes.email import ServicoEmail, obter_servico_email
 from app.servicos.autenticacao import ServicoAutenticacao
 from app.servicos.limite import LimitadorTentativas
 
@@ -35,11 +37,18 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
     },
 )
 def registrar(
-    dados: RegistroEntrada, sessao: SessaoDep, config: ConfigDep, request: Request
+    dados: RegistroEntrada,
+    sessao: SessaoDep,
+    config: ConfigDep,
+    request: Request,
+    email: Annotated[ServicoEmail, Depends(obter_servico_email)],
+    tarefas: BackgroundTasks,
 ) -> UsuarioSaida:
     # Toda tentativa de cadastro conta, com sucesso ou não.
     LimitadorTentativas(sessao, config).reservar("cadastro", ip=_ip(request))
     usuario = ServicoAutenticacao(sessao).registrar(dados)
+    tarefas.add_task(email.enviar, email.boas_vindas(usuario.email, usuario.nome))
+    enviar_verificacao(usuario, sessao, config, email, tarefas)
     return UsuarioSaida.model_validate(usuario)
 
 
