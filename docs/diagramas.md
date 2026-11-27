@@ -26,14 +26,15 @@ erDiagram
         enum papel "admin | cliente (padrão)"
         boolean ativo "padrão true"
         timestamp email_verificado_em "nulo até confirmar"
-        timestamp credenciais_alteradas_em "tokens anteriores deixam de valer"
+        string email_pendente "troca pedida, à espera de confirmação"
+        int versao_credenciais "sobe na troca de senha/e-mail; derruba tokens antigos"
     }
     TOKEN_CONTA {
         uuid id PK
         uuid usuario_id FK
         enum finalidade "verificacao_email | recuperacao_senha"
         string token_hash UK "SHA-256; o token nunca é gravado"
-        string email_alvo "endereço que o link confirma"
+        string email_alvo "endereço para o qual o link foi enviado"
         timestamp expira_em
         timestamp usado_em "uso único"
     }

@@ -68,6 +68,7 @@ class UsuarioSaida(BaseModel):
     papel: Papel
     ativo: bool
     email_verificado_em: datetime | None
+    email_pendente: str | None
     criado_em: datetime
 
 

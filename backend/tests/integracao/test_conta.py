@@ -1,7 +1,8 @@
-"""Verificação de e-mail, recuperação de senha e revogação de sessões (#90)."""
+"""Verificação de e-mail, troca de e-mail, recuperação de senha e revogação de sessões (#90)."""
 
 import re
 from collections.abc import Iterator
+from contextlib import nullcontext
 from datetime import timedelta
 
 import pytest
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.core.banco import obter_sessao
+from app.core.banco import obter_fabrica_sessao, obter_sessao
 from app.core.config import Ambiente, Configuracoes, obter_configuracoes
 from app.core.seguranca import gerar_hash
 from app.fabrica import criar_app
@@ -26,6 +27,8 @@ CONFIG = Configuracoes(
 )
 SENHA = "uma senha bem longa"
 NOVA = "outra frase bem comprida"
+VERIFICACAO = "Confirme seu e-mail"
+RECUPERACAO = "Redefinição de senha"
 
 
 @pytest.fixture
@@ -39,6 +42,8 @@ def cliente(sessao: Session, caixa: EnviadorMemoria) -> Iterator[TestClient]:
     app.dependency_overrides[obter_sessao] = lambda: sessao
     app.dependency_overrides[obter_configuracoes] = lambda: CONFIG
     app.dependency_overrides[obter_servico_email] = lambda: ServicoEmail(caixa, CONFIG)
+    # Tarefas em segundo plano usam a mesma sessão de teste (sem fechá-la).
+    app.dependency_overrides[obter_fabrica_sessao] = lambda: lambda: nullcontext(sessao)
     with TestClient(app) as cliente:
         yield cliente
 
@@ -51,10 +56,12 @@ def ana(sessao: Session) -> Usuario:
     return usuario
 
 
-def _token_do_email(caixa: EnviadorMemoria, assunto: str) -> str:
-    mensagem = next(m for m in reversed(caixa.enviadas) if m.assunto == assunto)
-    achado = re.search(r"token=([A-Za-z0-9_-]+)", mensagem.texto)
-    assert achado, "o e-mail não trouxe o link com o token"
+def _token(caixa: EnviadorMemoria, assunto: str, para: str | None = None) -> str:
+    mensagem = next(
+        m for m in reversed(caixa.enviadas) if m.assunto == assunto and para in (None, m.para)
+    )
+    achado = re.search(r"#token=([A-Za-z0-9_-]+)", mensagem.texto)
+    assert achado, "o link precisa levar o token no fragmento (#token=)"
     return achado.group(1)
 
 
@@ -64,27 +71,31 @@ def _auth(cliente: TestClient, email: str, senha: str = SENHA) -> dict[str, str]
     return {"Authorization": f"Bearer {resposta.json()['access_token']}"}
 
 
+def _confirmar(cliente: TestClient, token: str) -> int:
+    resposta = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
+    return int(resposta.status_code)
+
+
+def _redefinir(cliente: TestClient, token: str, senha: str = NOVA) -> int:
+    resposta = cliente.post(
+        "/api/v1/auth/senha/redefinir", json={"token": token, "nova_senha": senha}
+    )
+    return int(resposta.status_code)
+
+
 # ---------- cadastro e verificação ----------
 def test_cadastro_envia_boas_vindas_e_link_de_verificacao(
     cliente: TestClient, caixa: EnviadorMemoria
 ) -> None:
     resposta = cliente.post(
-        "/api/v1/auth/registrar",
-        json={"nome": "Bia", "email": "bia@exemplo.com", "senha": SENHA},
+        "/api/v1/auth/registrar", json={"nome": "Bia", "email": "bia@exemplo.com", "senha": SENHA}
     )
 
     assert resposta.status_code == 201
     assert resposta.json()["email_verificado_em"] is None
     assert {m.modelo for m in caixa.enviadas} == {"boas_vindas", "verificacao_email"}
-    token = _token_do_email(caixa, "Confirme seu e-mail")
-
-    confirmado = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
-    reuso = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
-
-    assert confirmado.status_code == 200
-    assert confirmado.json()["email_verificado_em"] is not None
-    assert reuso.status_code == 422
-    assert "inválido ou expirou" in reuso.json()["detail"]
+    token = _token(caixa, VERIFICACAO)
+    assert (_confirmar(cliente, token), _confirmar(cliente, token)) == (200, 422)  # uso único
 
 
 def test_novo_pedido_invalida_o_link_anterior(
@@ -92,98 +103,93 @@ def test_novo_pedido_invalida_o_link_anterior(
 ) -> None:
     h = _auth(cliente, ana.email)
     cliente.post("/api/v1/auth/verificacao/solicitar", headers=h)
-    primeiro = _token_do_email(caixa, "Confirme seu e-mail")
+    primeiro = _token(caixa, VERIFICACAO)
     cliente.post("/api/v1/auth/verificacao/solicitar", headers=h)
-    segundo = _token_do_email(caixa, "Confirme seu e-mail")
+    segundo = _token(caixa, VERIFICACAO)
 
-    antigo = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": primeiro})
-    novo = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": segundo})
-
-    assert (antigo.status_code, novo.status_code) == (422, 200)
+    assert (_confirmar(cliente, primeiro), _confirmar(cliente, segundo)) == (422, 200)
 
 
-def test_link_de_verificacao_nao_vale_depois_de_trocar_o_email(
-    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
-) -> None:
+def test_reenvio_da_verificacao_tem_limite(cliente: TestClient, ana: Usuario) -> None:
     h = _auth(cliente, ana.email)
-    cliente.post("/api/v1/auth/verificacao/solicitar", headers=h)
-    token = _token_do_email(caixa, "Confirme seu e-mail")
-    ana.email = "outro@exemplo.com"
-    sessao.flush()
 
-    resposta = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
+    respostas = [
+        cliente.post("/api/v1/auth/verificacao/solicitar", headers=h).status_code for _ in range(4)
+    ]
 
-    assert resposta.status_code == 422
+    assert respostas == [202, 202, 202, 429]
 
 
 @pytest.mark.parametrize("token", ["curto", "x" * 43, "com espaço e símbolos!!!!!!!!!!!"])
-def test_token_invalido_e_recusado(cliente: TestClient, token: str) -> None:
-    resposta = cliente.post("/api/v1/auth/verificacao/confirmar", json={"token": token})
-
-    assert resposta.status_code == 422
+def test_token_inexistente_ou_mal_formado_e_recusado(cliente: TestClient, token: str) -> None:
+    assert _confirmar(cliente, token) == 422
 
 
 def test_token_expirado_e_recusado(
     cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
 ) -> None:
     cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
-    token = _token_do_email(caixa, "Redefinição de senha")
+    token = _token(caixa, RECUPERACAO)
     sessao.execute(update(TokenConta).values(expira_em=func.now() - timedelta(seconds=1)))
 
-    resposta = cliente.post(
-        "/api/v1/auth/senha/redefinir", json={"token": token, "nova_senha": NOVA}
-    )
-
-    assert resposta.status_code == 422
+    assert _redefinir(cliente, token) == 422
 
 
 def test_banco_guarda_so_o_hash_do_token(
     cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
 ) -> None:
     cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
-    token = _token_do_email(caixa, "Redefinição de senha")
+    token = _token(caixa, RECUPERACAO)
 
     hashes = sessao.scalars(select(TokenConta.token_hash)).all()
     assert token not in hashes and all(len(h) == 64 for h in hashes)
 
 
 # ---------- recuperação de senha ----------
-def test_esqueci_senha_nao_revela_se_o_email_existe(
+def test_esqueci_senha_responde_igual_e_so_envia_para_conta_existente(
     cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
 ) -> None:
     existe = cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
     nao_existe = cliente.post("/api/v1/auth/senha/esqueci", json={"email": "ninguem@exemplo.com"})
 
     assert existe.status_code == nao_existe.status_code == 202
-    assert existe.content == nao_existe.content
+    assert existe.content == nao_existe.content == b""
     assert [m.para for m in caixa.enviadas] == [ana.email]
 
 
-def test_redefinir_troca_a_senha_e_derruba_sessoes_antigas(
+def test_redefinir_troca_a_senha_avisa_e_derruba_sessoes_antigas(
     cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
 ) -> None:
     sessao_antiga = _auth(cliente, ana.email)
     cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
-    token = _token_do_email(caixa, "Redefinição de senha")
+    token = _token(caixa, RECUPERACAO)
 
-    fraca = cliente.post(
-        "/api/v1/auth/senha/redefinir", json={"token": token, "nova_senha": "1234567890"}
-    )
-    certa = cliente.post("/api/v1/auth/senha/redefinir", json={"token": token, "nova_senha": NOVA})
-    reuso = cliente.post("/api/v1/auth/senha/redefinir", json={"token": token, "nova_senha": NOVA})
+    fraca = _redefinir(cliente, token, "1234567890")
+    certa = _redefinir(cliente, token)
+    reuso = _redefinir(cliente, token)
 
-    assert fraca.status_code == 422  # senha fraca não consome o link
-    assert certa.status_code == 204
-    assert reuso.status_code == 422
+    assert (fraca, certa, reuso) == (422, 204, 422)  # senha fraca não gasta o link
     eu = cliente.get("/api/v1/auth/eu", headers=sessao_antiga)
     assert eu.status_code == 401
-    assert eu.json()["detail"] == "Sua senha foi alterada. Entre novamente."
+    assert "foi alterado" in eu.json()["detail"]
+    assert any(m.assunto == "Sua senha foi alterada" for m in caixa.enviadas)
     nova_sessao = _auth(cliente, ana.email, NOVA)
     assert cliente.get("/api/v1/auth/eu", headers=nova_sessao).json()["email_verificado_em"]
 
 
-def test_troca_de_senha_pelo_perfil_tambem_derruba_sessoes(
-    cliente: TestClient, ana: Usuario
+def test_conta_desativada_nao_redefine_a_senha(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
+) -> None:
+    cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
+    token = _token(caixa, RECUPERACAO)
+    ana.ativo = False
+    sessao.flush()
+
+    assert _redefinir(cliente, token) == 422
+
+
+def test_troca_de_senha_pelo_perfil_devolve_token_novo_e_derruba_as_outras(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
 ) -> None:
     outra_sessao = _auth(cliente, ana.email)
     h = _auth(cliente, ana.email)
@@ -192,27 +198,11 @@ def test_troca_de_senha_pelo_perfil_tambem_derruba_sessoes(
         "/api/v1/usuarios/eu/senha", json={"senha_atual": SENHA, "nova_senha": NOVA}, headers=h
     )
 
-    assert resposta.status_code == 204
-    assert cliente.get("/api/v1/auth/eu", headers=outra_sessao).status_code == 401
-    assert (
-        cliente.get("/api/v1/auth/eu", headers=_auth(cliente, ana.email, NOVA)).status_code == 200
-    )
-
-
-def test_trocar_email_avisa_o_antigo_e_pede_confirmacao_do_novo(
-    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
-) -> None:
-    h = _auth(cliente, ana.email)
-
-    resposta = cliente.patch(
-        "/api/v1/usuarios/eu", json={"email": "nova@exemplo.com", "senha_atual": SENHA}, headers=h
-    )
-
     assert resposta.status_code == 200
-    assert resposta.json()["email_verificado_em"] is None
-    destinos = {(m.modelo, m.para) for m in caixa.enviadas}
-    assert ("alerta", "ana@exemplo.com") in destinos
-    assert ("verificacao_email", "nova@exemplo.com") in destinos
+    novo = {"Authorization": f"Bearer {resposta.json()['access_token']}"}
+    assert cliente.get("/api/v1/auth/eu", headers=novo).status_code == 200
+    assert cliente.get("/api/v1/auth/eu", headers=outra_sessao).status_code == 401
+    assert any(m.assunto == "Sua senha foi alterada" for m in caixa.enviadas)
 
 
 def test_pedidos_de_recuperacao_tem_limite(cliente: TestClient, ana: Usuario) -> None:
@@ -222,3 +212,62 @@ def test_pedidos_de_recuperacao_tem_limite(cliente: TestClient, ana: Usuario) ->
     ]
 
     assert respostas == [202, 202, 202, 429]
+
+
+# ---------- troca de e-mail (pendente até confirmar) ----------
+def _pedir_troca(cliente: TestClient, h: dict[str, str], novo: str) -> int:
+    resposta = cliente.patch(
+        "/api/v1/usuarios/eu", json={"email": novo, "senha_atual": SENHA}, headers=h
+    )
+    return int(resposta.status_code)
+
+
+def test_troca_de_email_so_vale_depois_de_confirmar(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
+) -> None:
+    h = _auth(cliente, ana.email)
+
+    assert _pedir_troca(cliente, h, "nova@exemplo.com") == 200
+    perfil = cliente.get("/api/v1/auth/eu", headers=h).json()
+    assert (perfil["email"], perfil["email_pendente"]) == ("ana@exemplo.com", "nova@exemplo.com")
+    destinos = {(m.modelo, m.para) for m in caixa.enviadas}
+    assert ("alerta", "ana@exemplo.com") in destinos
+    assert ("verificacao_email", "nova@exemplo.com") in destinos
+
+    assert _confirmar(cliente, _token(caixa, VERIFICACAO, "nova@exemplo.com")) == 200
+    assert cliente.get("/api/v1/auth/eu", headers=h).status_code == 401  # sessões derrubadas
+    perfil = cliente.get("/api/v1/auth/eu", headers=_auth(cliente, "nova@exemplo.com")).json()
+    assert (perfil["email"], perfil["email_pendente"]) == ("nova@exemplo.com", None)
+    assert perfil["email_verificado_em"]
+
+
+def test_link_de_recuperacao_antigo_nao_vale_depois_da_troca_de_email(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario
+) -> None:
+    cliente.post("/api/v1/auth/senha/esqueci", json={"email": ana.email})
+    recuperacao = _token(caixa, RECUPERACAO)
+    h = _auth(cliente, ana.email)
+    _pedir_troca(cliente, h, "nova@exemplo.com")
+    _confirmar(cliente, _token(caixa, VERIFICACAO, "nova@exemplo.com"))
+
+    assert _redefinir(cliente, recuperacao) == 422
+
+
+def test_link_de_verificacao_para_endereco_antigo_nao_vale(
+    cliente: TestClient, caixa: EnviadorMemoria, ana: Usuario, sessao: Session
+) -> None:
+    h = _auth(cliente, ana.email)
+    cliente.post("/api/v1/auth/verificacao/solicitar", headers=h)
+    token = _token(caixa, VERIFICACAO, ana.email)
+    ana.email = "outro@exemplo.com"  # e-mail mudou por outro caminho (ex.: admin)
+    sessao.flush()
+
+    assert _confirmar(cliente, token) == 422
+
+
+def test_pedidos_de_troca_de_email_tem_limite(cliente: TestClient, ana: Usuario) -> None:
+    h = _auth(cliente, ana.email)
+
+    respostas = [_pedir_troca(cliente, h, f"novo{i}@exemplo.com") for i in range(4)]
+
+    assert respostas == [200, 200, 200, 429]

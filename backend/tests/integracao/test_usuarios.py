@@ -17,6 +17,7 @@ from app.core.erros import Conflito
 from app.core.seguranca import gerar_hash
 from app.esquemas.usuarios import UsuarioAtualizacaoAdmin
 from app.fabrica import criar_app
+from app.integracoes.email import EnviadorMemoria, ServicoEmail, obter_servico_email
 from app.modelos import Papel, Usuario
 from app.servicos.usuarios import ServicoUsuarios
 
@@ -29,6 +30,7 @@ def cliente(sessao: Session) -> Iterator[TestClient]:
     app: FastAPI = criar_app(CONFIG)
     app.dependency_overrides[obter_sessao] = lambda: sessao
     app.dependency_overrides[obter_configuracoes] = lambda: CONFIG
+    app.dependency_overrides[obter_servico_email] = lambda: ServicoEmail(EnviadorMemoria(), CONFIG)
     with TestClient(app) as cliente:
         yield cliente
 
@@ -335,13 +337,24 @@ def test_trocar_email_exige_a_senha_atual(cliente: TestClient, sessao: Session) 
         url, json={"email": "nova@exemplo.com", "senha_atual": "errada errada"}, headers=h
     )
     certo = cliente.patch(url, json={"email": "nova@exemplo.com", "senha_atual": SENHA}, headers=h)
-    # Por último: o 409 desfaz a transação de teste (na aplicação, cada requisição tem a sua).
-    em_uso = cliente.patch(url, json={"email": "bia@exemplo.com", "senha_atual": SENHA}, headers=h)
 
     assert (sem_senha.status_code, senha_errada.status_code) == (401, 401)
     assert certo.status_code == 200
-    assert certo.json()["email"] == "nova@exemplo.com"
-    assert em_uso.status_code == 409
+    # A troca fica pendente até o novo endereço confirmar (ver test_conta.py).
+    assert certo.json()["email"] == "ana@exemplo.com"
+    assert certo.json()["email_pendente"] == "nova@exemplo.com"
+
+
+def test_trocar_para_email_em_uso_e_409(cliente: TestClient, sessao: Session) -> None:
+    _criar(sessao, "ana@exemplo.com")
+    _criar(sessao, "bia@exemplo.com")
+    h = _auth(cliente, "ana@exemplo.com")
+
+    resposta = cliente.patch(
+        "/api/v1/usuarios/eu", json={"email": "bia@exemplo.com", "senha_atual": SENHA}, headers=h
+    )
+
+    assert resposta.status_code == 409
 
 
 def test_cliente_nao_se_promove_pelo_perfil(cliente: TestClient, sessao: Session) -> None:
@@ -372,7 +385,7 @@ def test_troca_de_senha(cliente: TestClient, sessao: Session) -> None:
 
     assert errada.status_code == 401
     assert igual.status_code == 422
-    assert certa.status_code == 204
+    assert certa.status_code == 200  # devolve um token novo para a sessão atual
     login = cliente.post(
         "/api/v1/auth/login", data={"username": "ana@exemplo.com", "password": nova}
     )

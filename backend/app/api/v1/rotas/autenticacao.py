@@ -48,7 +48,7 @@ def registrar(
     LimitadorTentativas(sessao, config).reservar("cadastro", ip=_ip(request))
     usuario = ServicoAutenticacao(sessao).registrar(dados)
     tarefas.add_task(email.enviar, email.boas_vindas(usuario.email, usuario.nome))
-    enviar_verificacao(usuario, sessao, config, email, tarefas)
+    enviar_verificacao(usuario, usuario.email, sessao, config, email, tarefas)
     return UsuarioSaida.model_validate(usuario)
 
 
@@ -72,7 +72,9 @@ def entrar(
     reserva = limitador.reservar("login", email=formulario.username, ip=ip)
     usuario = ServicoAutenticacao(sessao).autenticar(formulario.username, formulario.password)
     limitador.liberar(reserva, formulario.username, ip)
-    token, expira = criar_token_acesso(usuario.id, usuario.papel, config)
+    token, expira = criar_token_acesso(
+        usuario.id, usuario.papel, config, versao=usuario.versao_credenciais
+    )
     return Token(access_token=token, expira_em=expira)
 
 

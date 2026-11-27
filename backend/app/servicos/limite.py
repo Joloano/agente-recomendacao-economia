@@ -58,7 +58,9 @@ REGRAS: dict[str, tuple[Regra, ...]] = {
         Regra("email", 3, timedelta(hours=1)),
         Regra("ip", 20, timedelta(hours=1)),
     ),
+    # Chaveado pelo id do usuário (não pelo e-mail, que muda a cada troca).
     "verificacao_email": (Regra("email", 3, timedelta(hours=1)),),
+    "troca_email": (Regra("email", 3, timedelta(hours=1)),),
 }
 
 

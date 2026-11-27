@@ -13,6 +13,7 @@ from app.core.seguranca import SenhaFraca, gerar_hash, validar_politica_senha, v
 from app.esquemas.paginacao import ParametrosPagina
 from app.esquemas.usuarios import PerfilAtualizacao, TrocaSenha, UsuarioAtualizacaoAdmin
 from app.modelos import Papel, Usuario
+from app.servicos.tokens_conta import ServicoTokensConta
 
 MENSAGEM_EMAIL_EM_USO = "Este e-mail já está cadastrado."
 MENSAGEM_ULTIMO_ADMIN = "É preciso manter pelo menos um administrador ativo."
@@ -120,7 +121,12 @@ class ServicoUsuarios:
             self._travar_admins_e_garantir_outro(usuario_id)
         usuario = self.obter(usuario_id)
         if dados.email is not None and dados.email != usuario.email:
-            usuario.email_verificado_em = None  # o novo endereço precisa ser confirmado
+            # Troca feita pelo admin vale na hora, mas o endereço precisa ser confirmado,
+            # os links antigos caem e as sessões do usuário são derrubadas.
+            usuario.email_verificado_em = None
+            usuario.email_pendente = None
+            usuario.versao_credenciais += 1
+            ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
         for campo, valor in dados.model_dump(exclude_unset=True).items():
             setattr(usuario, campo, valor)
         self._confirmar()
@@ -153,20 +159,43 @@ class ServicoUsuarios:
             self._sessao.refresh(alvo)
 
     # ---------- próprio perfil ----------
-    def atualizar_perfil(self, usuario: Usuario, dados: PerfilAtualizacao) -> Usuario:
-        mudancas = dados.model_dump(exclude_unset=True, exclude={"senha_atual"})
-        troca_email = "email" in mudancas and mudancas["email"] != usuario.email
-        if troca_email:
-            mudancas["email_verificado_em"] = None  # o novo endereço precisa ser confirmado
+    def atualizar_perfil(self, usuario: Usuario, dados: PerfilAtualizacao) -> str | None:
+        """Atualiza o perfil. Um e-mail novo fica **pendente** até ser confirmado.
+
+        Devolve o e-mail pendente quando houve pedido de troca (para enviar a confirmação).
+        """
+        mudancas = dados.model_dump(exclude_unset=True, exclude={"senha_atual", "email"})
+        novo_email = dados.email if dados.email not in (None, usuario.email) else None
         # Trocar o e-mail exige a senha: um token roubado não basta para tomar a conta.
-        if troca_email and not (
+        if novo_email and not (
             dados.senha_atual and verificar_senha(dados.senha_atual, usuario.senha_hash)
         ):
             raise SenhaAtualIncorreta("Confirme a senha atual para trocar o e-mail.")
+        if novo_email and self._sessao.scalar(
+            select(Usuario.id).where(Usuario.email == novo_email)
+        ):
+            raise Conflito(MENSAGEM_EMAIL_EM_USO)
         for campo, valor in mudancas.items():
             setattr(usuario, campo, valor)
+        if novo_email:
+            usuario.email_pendente = novo_email
         self._confirmar()
-        return usuario
+        return novo_email
+
+    def aplicar_email_pendente(self, usuario: Usuario) -> None:
+        """O novo endereço confirmou: passa a valer, derruba as sessões e os links antigos."""
+        assert usuario.email_pendente  # noqa: S101 - garantido por quem chama
+        usuario.email = usuario.email_pendente
+        usuario.email_pendente = None
+        usuario.email_verificado_em = datetime.now(UTC)
+        usuario.versao_credenciais += 1
+        ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
+        self._confirmar()
+
+    def marcar_email_verificado(self, usuario: Usuario, *, confirmar: bool = True) -> None:
+        usuario.email_verificado_em = usuario.email_verificado_em or datetime.now(UTC)
+        if confirmar:
+            self._sessao.commit()
 
     def trocar_senha(self, usuario: Usuario, dados: TrocaSenha) -> None:
         if not verificar_senha(dados.senha_atual, usuario.senha_hash):
@@ -177,7 +206,8 @@ class ServicoUsuarios:
         self.definir_senha(usuario, dados.nova_senha)
 
     def definir_senha(self, usuario: Usuario, nova_senha: str) -> None:
-        """Grava a senha e revoga todas as sessões abertas (tokens emitidos antes de agora)."""
+        """Grava a senha, derruba as sessões abertas e invalida os links pendentes."""
         usuario.senha_hash = gerar_hash(nova_senha)
-        usuario.credenciais_alteradas_em = datetime.now(UTC)
+        usuario.versao_credenciais += 1
+        ServicoTokensConta(self._sessao).invalidar(usuario, confirmar=False)
         self._sessao.commit()

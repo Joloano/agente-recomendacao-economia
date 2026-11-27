@@ -118,7 +118,7 @@ class DadosToken:
     usuario_id: uuid.UUID
     papel: Papel
     expira_em: datetime
-    emitido_em: datetime
+    versao: int
 
 
 class TokenInvalido(Exception):
@@ -126,7 +126,11 @@ class TokenInvalido(Exception):
 
 
 def criar_token_acesso(
-    usuario_id: uuid.UUID, papel: Papel, config: Configuracoes, agora: datetime | None = None
+    usuario_id: uuid.UUID,
+    papel: Papel,
+    config: Configuracoes,
+    agora: datetime | None = None,
+    versao: int = 0,
 ) -> tuple[str, datetime]:
     emitido = agora or datetime.now(UTC)
     expira = emitido + timedelta(minutes=config.jwt_expiracao_minutos)
@@ -140,9 +144,9 @@ def criar_token_acesso(
         "aud": PUBLICO,
         "jti": uuid.uuid4().hex,
         "tipo": "acesso",
-        # "iat" tem resolução de segundos; os milissegundos permitem revogar com precisão
-        # os tokens emitidos antes de uma troca de senha.
-        "emitido_ms": int(emitido.timestamp() * 1000),
+        # Versão das credenciais do usuário: muda na troca de senha ou de e-mail e derruba
+        # os tokens antigos (comparação exata, sem depender do relógio das réplicas).
+        "ver": versao,
     }
     token = jwt.encode(carga, config.jwt_segredo.get_secret_value(), config.jwt_algoritmo)
     return token, expira
@@ -165,9 +169,7 @@ def ler_token_acesso(token: str, config: Configuracoes) -> DadosToken:
             usuario_id=uuid.UUID(carga["sub"]),
             papel=Papel(carga["papel"]),
             expira_em=datetime.fromtimestamp(carga["exp"], UTC),
-            emitido_em=datetime.fromtimestamp(
-                carga.get("emitido_ms", carga["iat"] * 1000) / 1000, UTC
-            ),
+            versao=int(carga.get("ver", 0)),
         )
     except (jwt.PyJWTError, ValueError, KeyError) as erro:
         raise TokenInvalido(str(erro)) from erro

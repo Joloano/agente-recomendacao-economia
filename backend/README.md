@@ -36,22 +36,27 @@ Swagger em http://localhost:8000/docs · saúde em http://localhost:8000/api/v1/
   dono_id, "Recurso")`. Cliente que tenta acessar dado de outra pessoa recebe **404**, para não
   revelar que o dado existe.
 
-## Verificação de e-mail e recuperação de senha
+## Verificação de e-mail, troca de e-mail e recuperação de senha
 
 | Rota | O quê |
 |---|---|
-| `POST /api/v1/auth/verificacao/solicitar` | Reenvia o link de confirmação (autenticado; 3 por hora) |
-| `POST /api/v1/auth/verificacao/confirmar` | Confirma o e-mail com `{token}` |
-| `POST /api/v1/auth/senha/esqueci` | Sempre 202 (não revela se o e-mail existe); 3 por e-mail e 20 por IP por hora |
-| `POST /api/v1/auth/senha/redefinir` | `{token, nova_senha}`: troca a senha e derruba as sessões abertas |
+| `POST /api/v1/auth/verificacao/solicitar` | Reenvia o link de confirmação (do e-mail atual ou do pendente; 3 por hora) |
+| `POST /api/v1/auth/verificacao/confirmar` | `{token}`: confirma o e-mail atual ou efetiva a troca pendente |
+| `POST /api/v1/auth/senha/esqueci` | Sempre 202 e sem consultar a conta na requisição; 3 por e-mail e 20 por IP por hora |
+| `POST /api/v1/auth/senha/redefinir` | `{token, nova_senha}`: troca a senha, derruba as sessões e avisa por e-mail |
+| `PATCH /api/v1/usuarios/eu` com `email` | Exige `senha_atual`; o novo e-mail fica **pendente** até ser confirmado |
+| `POST /api/v1/usuarios/eu/senha` | Troca a senha, derruba as outras sessões e devolve um token novo |
 
-- Tokens de 256 bits, de uso único, com validade de 24 h (verificação) e 30 min (recuperação).
-  Só o hash SHA-256 fica no banco, e um pedido novo invalida o link anterior.
-- O cadastro envia as boas-vindas e o link de confirmação. A troca de e-mail no perfil avisa o
-  endereço antigo e pede a confirmação do novo.
-- Trocar ou redefinir a senha grava `credenciais_alteradas_em`: tokens de acesso emitidos antes
-  disso recebem 401 ("Sua senha foi alterada").
-- Os e-mails saem em segundo plano (`BackgroundTasks`).
+- Links com o token no **fragmento** (`/redefinir-senha#token=...`): o navegador nunca o envia
+  ao servidor, então ele não aparece em logs nem no Referer.
+- Tokens de 256 bits, de uso único, presos ao endereço para o qual foram enviados (24 h para
+  verificação e 30 min para recuperação). Só o hash SHA-256 fica no banco, e um pedido novo
+  invalida o link anterior.
+- **Versão das credenciais**: trocar ou redefinir a senha, ou efetivar uma troca de e-mail, sobe
+  `versao_credenciais`. Os tokens de acesso com versão antiga recebem 401, e os links pendentes
+  são invalidados.
+- Pedido de troca de e-mail: o endereço atual é avisado e o novo recebe a confirmação.
+- `email_verificado_em` é informativo por enquanto (não bloqueia login nem ações).
 
 ## Usuários
 
