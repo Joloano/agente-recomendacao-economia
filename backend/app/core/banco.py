@@ -1,6 +1,7 @@
 """Conexão com o PostgreSQL (SQLAlchemy 2)."""
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager
 from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine
@@ -29,3 +30,12 @@ def obter_sessao() -> Iterator[Session]:
     """Dependência do FastAPI: uma sessão por requisição."""
     with fabrica_sessao()() as sessao:
         yield sessao
+
+
+FabricaSessao = Callable[[], AbstractContextManager[Session]]
+
+
+def obter_fabrica_sessao() -> FabricaSessao:
+    """Dependência para tarefas em segundo plano, que precisam de uma sessão própria
+    (a da requisição já foi fechada quando elas rodam)."""
+    return fabrica_sessao()

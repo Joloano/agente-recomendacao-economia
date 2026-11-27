@@ -6,6 +6,7 @@ from app.modelos.equipamento import Categoria, Equipamento
 from app.modelos.residencia import Preferencia, Residencia
 from app.modelos.simulacao import Feedback, Recomendacao, Simulacao
 from app.modelos.tentativa import TentativaAcesso
+from app.modelos.token_conta import FinalidadeToken, TokenConta
 from app.modelos.usuario import Usuario
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "Categoria",
     "Equipamento",
     "Feedback",
+    "FinalidadeToken",
     "Papel",
     "Preferencia",
     "Recomendacao",
@@ -22,5 +24,6 @@ __all__ = [
     "StatusRecomendacao",
     "StatusSimulacao",
     "TentativaAcesso",
+    "TokenConta",
     "Usuario",
 ]

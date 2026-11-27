@@ -16,6 +16,7 @@ erDiagram
     EQUIPAMENTO ||--o{ RECOMENDACAO : "origina (sem exclusão física)"
     RECOMENDACAO ||--o| FEEDBACK : recebe
     USUARIO |o--o{ FEEDBACK : "registra (SET NULL)"
+    USUARIO ||--o{ TOKEN_CONTA : "recebe (CASCADE)"
 
     USUARIO {
         uuid id PK
@@ -24,6 +25,18 @@ erDiagram
         string senha_hash
         enum papel "admin | cliente (padrão)"
         boolean ativo "padrão true"
+        timestamp email_verificado_em "nulo até confirmar"
+        string email_pendente "troca pedida, à espera de confirmação"
+        int versao_credenciais "sobe na troca de senha/e-mail; derruba tokens antigos"
+    }
+    TOKEN_CONTA {
+        uuid id PK
+        uuid usuario_id FK
+        enum finalidade "verificacao_email | recuperacao_senha"
+        string token_hash UK "SHA-256; o token nunca é gravado"
+        string email_alvo "endereço para o qual o link foi enviado"
+        timestamp expira_em
+        timestamp usado_em "uso único"
     }
     RESIDENCIA {
         uuid id PK

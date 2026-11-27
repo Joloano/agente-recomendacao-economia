@@ -1,10 +1,12 @@
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response, status
 
-from app.api.dependencias import AdminDep, SessaoDep, UsuarioDep
-from app.esquemas.autenticacao import UsuarioSaida
+from app.api.dependencias import AdminDep, ConfigDep, SessaoDep, UsuarioDep
+from app.api.v1.rotas.conta import avisar, chave_usuario, enviar_verificacao
+from app.core.seguranca import criar_token_acesso
+from app.esquemas.autenticacao import Token, UsuarioSaida
 from app.esquemas.paginacao import Pagina, ParametrosPagina, parametros_pagina
 from app.esquemas.usuarios import (
     PerfilAtualizacao,
@@ -12,7 +14,9 @@ from app.esquemas.usuarios import (
     UsuarioAtualizacaoAdmin,
     UsuarioCriacao,
 )
+from app.integracoes.email import ServicoEmail, obter_servico_email
 from app.modelos import Papel
+from app.servicos.limite import LimitadorTentativas
 from app.servicos.usuarios import ServicoUsuarios
 
 admin = APIRouter(prefix="/admin/usuarios", tags=["Admin: usuários"])
@@ -99,16 +103,42 @@ def meu_perfil(usuario: UsuarioDep) -> UsuarioSaida:
     },
 )
 def atualizar_meu_perfil(
-    dados: PerfilAtualizacao, usuario: UsuarioDep, sessao: SessaoDep
+    dados: PerfilAtualizacao,
+    usuario: UsuarioDep,
+    sessao: SessaoDep,
+    config: ConfigDep,
+    email: Annotated[ServicoEmail, Depends(obter_servico_email)],
+    tarefas: BackgroundTasks,
 ) -> UsuarioSaida:
-    return UsuarioSaida.model_validate(ServicoUsuarios(sessao).atualizar_perfil(usuario, dados))
+    if dados.email is not None and dados.email != usuario.email:
+        LimitadorTentativas(sessao, config).reservar("troca_email", email=chave_usuario(usuario))
+    pendente = ServicoUsuarios(sessao).atualizar_perfil(usuario, dados)
+    if pendente:
+        # O e-mail só muda quando o novo endereço confirmar; o atual é avisado do pedido.
+        avisar(
+            usuario, usuario.email, "Pedido de troca do e-mail da sua conta", config, email, tarefas
+        )
+        enviar_verificacao(usuario, pendente, sessao, config, email, tarefas)
+    return UsuarioSaida.model_validate(usuario)
 
 
 @perfil.post(
     "/senha",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=Token,
+    summary="Troca a senha; derruba as outras sessões e devolve um token novo para esta",
     responses={401: {"description": "Senha atual incorreta"}, 422: {"description": "Senha fraca"}},
 )
-def trocar_minha_senha(dados: TrocaSenha, usuario: UsuarioDep, sessao: SessaoDep) -> Response:
+def trocar_minha_senha(
+    dados: TrocaSenha,
+    usuario: UsuarioDep,
+    sessao: SessaoDep,
+    config: ConfigDep,
+    email: Annotated[ServicoEmail, Depends(obter_servico_email)],
+    tarefas: BackgroundTasks,
+) -> Token:
     ServicoUsuarios(sessao).trocar_senha(usuario, dados)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    avisar(usuario, usuario.email, "Sua senha foi alterada", config, email, tarefas)
+    token, expira = criar_token_acesso(
+        usuario.id, usuario.papel, config, versao=usuario.versao_credenciais
+    )
+    return Token(access_token=token, expira_em=expira)
