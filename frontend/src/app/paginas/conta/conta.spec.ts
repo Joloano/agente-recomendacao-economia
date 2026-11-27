@@ -3,6 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Type } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+
+import { routes } from '../../app.routes';
 
 import { EsqueciSenha } from './esqueci-senha';
 import { RedefinirSenha } from './redefinir-senha';
@@ -144,5 +147,99 @@ describe('RedefinirSenha', () => {
       );
 
     expect(texto(fixture)).toContain('Esta senha é muito comum.');
+  });
+});
+
+describe('Fluxos de conta: casos de borda', () => {
+  it('confirmação: falha de conexão permite tentar de novo com o mesmo token', () => {
+    const { fixture, http } = montar(VerificarEmail, TOKEN);
+
+    http.expectOne('/api/v1/auth/verificacao/confirmar').error(new ProgressEvent('error'), {
+      status: 0,
+    });
+    expect(texto(fixture)).toContain('Não foi possível conectar');
+
+    (fixture.nativeElement as HTMLElement).querySelector('button')?.click();
+    const nova = http.expectOne('/api/v1/auth/verificacao/confirmar');
+    expect(nova.request.body).toEqual({ token: TOKEN });
+    nova.flush({});
+
+    expect(texto(fixture)).toContain('Seu e-mail foi confirmado');
+  });
+
+  it('confirmação: e-mail tomado por outra conta tem orientação própria', () => {
+    const { fixture, http } = montar(VerificarEmail, TOKEN);
+
+    http.expectOne('/api/v1/auth/verificacao/confirmar').flush(
+      {
+        status: 409,
+        title: 'Conflict',
+        detail: 'Este e-mail passou a ser usado por outra conta.',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+
+    expect(texto(fixture)).toContain('escolha outro e-mail');
+  });
+
+  it('esqueci a senha: limite atingido mostra a mensagem e permite tentar depois', () => {
+    const { fixture, http } = montar(EsqueciSenha, null);
+    fixture.componentInstance.email.setValue('ana@exemplo.com');
+
+    fixture.componentInstance.enviar();
+    http
+      .expectOne('/api/v1/auth/senha/esqueci')
+      .flush(
+        { status: 429, title: 'Too Many Requests', detail: 'Muitas tentativas seguidas.' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
+
+    expect(texto(fixture)).toContain('Muitas tentativas seguidas.');
+    expect(fixture.componentInstance.enviando()).toBe(false);
+  });
+
+  it('esqueci a senha: segundo clique durante o envio não repete a requisição', () => {
+    const { fixture, http } = montar(EsqueciSenha, null);
+    fixture.componentInstance.email.setValue('ana@exemplo.com');
+
+    fixture.componentInstance.enviar();
+    fixture.componentInstance.enviar();
+
+    expect(http.match('/api/v1/auth/senha/esqueci')).toHaveLength(1);
+  });
+
+  it('nova senha: sem token mostra o caminho para pedir outro link', () => {
+    const { fixture, http } = montar(RedefinirSenha, null);
+
+    http.expectNone('/api/v1/auth/senha/redefinir');
+    expect(texto(fixture)).toContain('O link está incompleto');
+  });
+});
+
+describe('Rotas reais', () => {
+  it('abre /verificar-email#token=..., tira o token da URL e confirma uma vez só', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const harness = await RouterTestingHarness.create();
+    const http = TestBed.inject(HttpTestingController);
+
+    await harness.navigateByUrl(`/verificar-email#token=${TOKEN}`);
+    await harness.fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/verificar-email');
+    const req = http.expectOne('/api/v1/auth/verificacao/confirmar');
+    expect(req.request.body).toEqual({ token: TOKEN });
+  });
+
+  it('a raiz continua levando ao início', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const harness = await RouterTestingHarness.create();
+
+    await harness.navigateByUrl('/');
+
+    expect(TestBed.inject(Router).url).toBe('/inicio');
   });
 });

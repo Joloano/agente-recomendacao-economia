@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 
-import { Publico } from './layout/publico';
 import { Shell } from './layout/shell';
 
 export const routes: Routes = [
@@ -26,7 +25,8 @@ export const routes: Routes = [
     ] as const
   ).map(([path, titulo, loadComponent]) => ({
     path,
-    component: Publico,
+    // Sob demanda: o layout público (e o MatCard) fica fora do bundle inicial.
+    loadComponent: () => import('./layout/publico').then((m) => m.Publico),
     children: [{ path: '', title: `${titulo} · Agente de Economia`, loadComponent }],
   })),
   {

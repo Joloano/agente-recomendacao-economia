@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,6 +8,7 @@ import { RouterLink } from '@angular/router';
 
 import { ErroApi } from '../../core/api.service';
 import { ContaService } from '../../core/conta.service';
+import { criarFocoAposRender } from './foco';
 
 @Component({
   selector: 'app-esqueci-senha',
@@ -21,14 +22,18 @@ import { ContaService } from '../../core/conta.service';
   ],
   template: `
     <h1>Esqueceu a senha?</h1>
-    @if (enviado()) {
-      <p class="linha sucesso" role="status">
-        <mat-icon aria-hidden="true">mark_email_read</mat-icon>
-        Se houver uma conta com este e-mail, enviamos um link para criar uma nova senha.
-      </p>
-      <p>O link vale por 30 minutos. Confira também a caixa de spam.</p>
-      <a mat-stroked-button routerLink="/inicio">Voltar para o início</a>
-    } @else {
+    <!-- Região sempre presente: o leitor de tela anuncia o que entrar nela. -->
+    <div aria-live="polite">
+      @if (enviado()) {
+        <p class="linha sucesso" #confirmacao tabindex="-1">
+          <mat-icon aria-hidden="true">mark_email_read</mat-icon>
+          Se houver uma conta com este e-mail, enviamos um link para criar uma nova senha.
+        </p>
+        <p>O link vale por 30 minutos. Confira também a caixa de spam.</p>
+        <a mat-stroked-button routerLink="/inicio">Voltar para o início</a>
+      }
+    </div>
+    @if (!enviado()) {
       <p>Informe o e-mail da sua conta e enviaremos um link para criar uma nova senha.</p>
       <form (ngSubmit)="enviar()" novalidate>
         <mat-form-field appearance="outline" class="campo">
@@ -53,6 +58,8 @@ import { ContaService } from '../../core/conta.service';
 })
 export class EsqueciSenha {
   private readonly conta = inject(ContaService);
+  private readonly focar = criarFocoAposRender();
+  private readonly confirmacao = viewChild<ElementRef<HTMLElement>>('confirmacao');
 
   readonly email = new FormControl('', {
     nonNullable: true,
@@ -72,7 +79,10 @@ export class EsqueciSenha {
     this.enviando.set(true);
     this.erro.set('');
     this.conta.pedirRecuperacao(this.email.value).subscribe({
-      next: () => this.enviado.set(true),
+      next: () => {
+        this.enviado.set(true);
+        this.focar(() => this.confirmacao());
+      },
       error: (erro: ErroApi) => {
         this.erro.set(erro.message);
         this.enviando.set(false);
